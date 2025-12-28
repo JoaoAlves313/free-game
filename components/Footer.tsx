@@ -1,7 +1,7 @@
 import React from 'react';
 
 const Footer: React.FC = () => {
-  const APP_VERSION = "v1.0.2";
+  const APP_VERSION = "v1.0.3";
 
   return (
     <footer className="bg-gaming-900 border-t border-gaming-700 py-8 mt-12">
@@ -18,7 +18,7 @@ const Footer: React.FC = () => {
           
           <div className="flex flex-col items-center md:items-end">
             <div className="flex items-center gap-2 px-3 py-1 bg-gaming-800 rounded-full border border-gaming-700">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
               <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Build: {APP_VERSION}</span>
             </div>
             <p className="text-[9px] text-gray-700 mt-2 uppercase tracking-tighter">© 2024 FreeGameHunter</p>
