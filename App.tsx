@@ -57,8 +57,8 @@ const App: React.FC = () => {
           await window.OneSignal.init({
             appId: "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4",
             allowLocalhostAsSecureOrigin: true,
-            serviceWorkerPath: "OneSignalSDKWorker.js", // Explicitamente na raiz
-            serviceWorkerParam: { scope: "/" }, // Escopo global
+            serviceWorkerPath: "OneSignalSDKWorker.js",
+            serviceWorkerParam: { scope: "/" },
             notifyButton: { enable: false },
           });
 
@@ -66,12 +66,11 @@ const App: React.FC = () => {
             setIsSubscribed(window.OneSignal.Notifications.permission);
             
             window.OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
-              console.log("Status de permissão alterado:", permission);
               setIsSubscribed(permission);
             });
           }
         } catch (err) {
-          console.error("Erro crítico na inicialização do OneSignal:", err);
+          console.debug("OneSignal init suppressed (usually due to non-HTTPS environment)");
         }
       });
     };
@@ -217,30 +216,24 @@ const App: React.FC = () => {
   };
 
   const requestNotifPermission = () => {
-    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-    
-    if (!isSecure) {
-      alert("⚠️ ERRO DE SEGURANÇA:\n\nNotificações WebPush EXIGEM HTTPS.\nO site não pode solicitar permissão em uma conexão insegura (HTTP).\n\nSe você está em um ambiente de desenvolvimento local, use 'localhost'.");
-      return;
-    }
-
+    // Tentamos solicitar permissão independentemente da checagem manual de HTTPS
+    // Deixamos o SDK e o Navegador lidarem com a restrição
     window.OneSignal.push(async () => {
       try {
         if (window.OneSignal.Notifications) {
           console.log("Tentando abrir prompt OneSignal...");
           await window.OneSignal.Notifications.requestPermission();
           
-          // Fallback para Slidedown se o nativo for bloqueado/ignorado
           setTimeout(async () => {
              if (window.OneSignal.Notifications.permission !== 'granted' && window.OneSignal.Slidedown) {
                await window.OneSignal.Slidedown.showHttpPrompt();
              }
           }, 1000);
         } else {
-          alert("O SDK do OneSignal ainda não carregou. Tente novamente em alguns segundos.");
+          console.warn("OneSignal.Notifications não disponível.");
         }
       } catch (e) {
-        console.error("Erro ao solicitar permissão:", e);
+        console.error("Erro OneSignal:", e);
       }
     });
   };
@@ -253,7 +246,7 @@ const App: React.FC = () => {
           icon: "https://cdn-icons-png.flaticon.com/512/3408/3408455.png"
         });
       } else {
-        alert("Permissão do navegador ainda não concedida.");
+        alert("Permissão negada ou ambiente sem suporte a notificações.");
       }
     } catch (e) {
       console.error("Erro ao enviar teste:", e);
