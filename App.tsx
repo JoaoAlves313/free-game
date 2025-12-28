@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import GameCard from './components/GameCard';
@@ -12,6 +11,7 @@ import { Loader2, AlertCircle, ShoppingBag, MonitorSmartphone, Package, Gift, Be
 declare global {
   interface Window {
     OneSignal: any;
+    OneSignalDeferred: any[];
   }
 }
 
@@ -47,43 +47,26 @@ const App: React.FC = () => {
     }
   });
 
-  // OneSignal v16 Initialization
+  // Sync state with OneSignal after it initializes in the HTML
   useEffect(() => {
-    const initOneSignal = async () => {
-      window.OneSignal = window.OneSignal || [];
-      
-      window.OneSignal.push(async function() {
-        try {
-          await window.OneSignal.init({
-            appId: "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4",
-            allowLocalhostAsSecureOrigin: true,
-            serviceWorkerPath: "OneSignalSDKWorker.js",
-            serviceWorkerParam: { scope: "/" },
-            notifyButton: { enable: false },
-          });
-
-          if (window.OneSignal.Notifications) {
-            setIsSubscribed(window.OneSignal.Notifications.permission);
-            
-            window.OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
-              setIsSubscribed(permission);
-            });
-          }
-        } catch (err) {
-          console.debug("OneSignal init suppressed (usually due to non-HTTPS environment)");
-        }
-      });
-    };
-
-    initOneSignal();
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal: any) {
+      if (OneSignal.Notifications) {
+        setIsSubscribed(OneSignal.Notifications.permission);
+        OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
+          setIsSubscribed(permission);
+        });
+      }
+    });
   }, []);
 
   // Sync Tags with OneSignal
   useEffect(() => {
     localStorage.setItem('notif_prefs', JSON.stringify(notifPrefs));
     
-    if (isSubscribed) {
-      window.OneSignal.push(() => {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(function(OneSignal: any) {
+      if (isSubscribed && OneSignal.User && typeof OneSignal.User.addTags === 'function') {
         try {
           const tags: Record<string, string> = {
             notifications_enabled: notifPrefs.enabled ? "true" : "false"
@@ -101,14 +84,12 @@ const App: React.FC = () => {
             tags[`store_${s}`] = hasStore ? "true" : "false";
           });
 
-          if (window.OneSignal.User && typeof window.OneSignal.User.addTags === 'function') {
-            window.OneSignal.User.addTags(tags);
-          }
+          OneSignal.User.addTags(tags);
         } catch (e) {
           console.error("Erro ao sincronizar tags:", e);
         }
-      });
-    }
+      }
+    });
   }, [notifPrefs, isSubscribed]);
 
   const checkAndNotify = useCallback((newGames: Game[]) => {
@@ -216,19 +197,11 @@ const App: React.FC = () => {
   };
 
   const requestNotifPermission = () => {
-    // Tentamos solicitar permissão independentemente da checagem manual de HTTPS
-    // Deixamos o SDK e o Navegador lidarem com a restrição
-    window.OneSignal.push(async () => {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async (OneSignal: any) => {
       try {
-        if (window.OneSignal.Notifications) {
-          console.log("Tentando abrir prompt OneSignal...");
-          await window.OneSignal.Notifications.requestPermission();
-          
-          setTimeout(async () => {
-             if (window.OneSignal.Notifications.permission !== 'granted' && window.OneSignal.Slidedown) {
-               await window.OneSignal.Slidedown.showHttpPrompt();
-             }
-          }, 1000);
+        if (OneSignal.Notifications) {
+          await OneSignal.Notifications.requestPermission();
         } else {
           console.warn("OneSignal.Notifications não disponível.");
         }

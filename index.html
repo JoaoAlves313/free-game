@@ -6,8 +6,20 @@
     <title>FreeGameHunter - Jogos Grátis Agora</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- OneSignal SDK com crossorigin para evitar "Script error" -->
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer crossorigin="anonymous"></script>
+    
+    <!-- OneSignal SDK v16 -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4",
+          allowLocalhostAsSecureOrigin: true,
+          serviceWorkerPath: "OneSignalSDKWorker.js",
+        });
+      });
+    </script>
+
     <script>
       tailwind.config = {
         theme: {
@@ -29,6 +41,7 @@
               'fade-in': 'fadeIn 0.3s ease-out forwards',
               'scale-in': 'scaleIn 0.3s ease-out forwards',
               'spin-slow': 'spin 8s linear infinite',
+              'swing': 'swing 2s ease-in-out infinite',
             },
             keyframes: {
               fadeIn: {
@@ -38,6 +51,13 @@
               scaleIn: {
                 '0%': { transform: 'scale(0.95)', opacity: '0' },
                 '100%': { transform: 'scale(1)', opacity: '1' },
+              },
+              swing: {
+                '0%, 100%': { transform: 'rotate(0deg)' },
+                '20%': { transform: 'rotate(15deg)' },
+                '40%': { transform: 'rotate(-10deg)' },
+                '60%': { transform: 'rotate(5deg)' },
+                '80%': { transform: 'rotate(-5deg)' },
               }
             }
           }
@@ -49,7 +69,6 @@
         background-color: #0f172a;
         color: #f8fafc;
       }
-      /* Custom scrollbar */
       ::-webkit-scrollbar {
         width: 8px;
       }
@@ -64,18 +83,18 @@
         background: #64748b; 
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0"
-  }
-}
-</script>
-</head>
+    <script type="importmap">
+    {
+      "imports": {
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+        "lucide-react": "https://esm.sh/lucide-react@^0.561.0"
+      }
+    }
+    </script>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
