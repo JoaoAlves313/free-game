@@ -58,14 +58,11 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
               </div>
               <div>
                 <p className="text-sm font-bold text-amber-200">Notificações Desativadas</p>
-                <p className="text-xs text-amber-200/60 mt-1">Para receber jogos grátis mesmo com o site fechado, precisamos da sua permissão via OneSignal.</p>
+                <p className="text-xs text-amber-200/60 mt-1">Para receber jogos grátis, use o link oficial abaixo para se inscrever.</p>
               </div>
-              <button 
-                onClick={onRequestPermission}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-gaming-900 font-bold py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-95"
-              >
-                Ativar Notificações
-              </button>
+              
+              {/* Substituição do botão pelo comando oficial solicitado */}
+              <div className='onesignal-customlink-container w-full min-h-[44px] flex justify-center items-center py-2'></div>
             </div>
           ) : (
             <div className="space-y-4">
