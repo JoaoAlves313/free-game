@@ -1,13 +1,13 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import GameCard from './components/GameCard';
 import HypothesisCard from './components/HypothesisCard';
+import NotificationSettings from './components/NotificationSettings';
 import Footer from './components/Footer';
 import { fetchFreeGames } from './services/gameService';
 import { Game } from './types';
-import { Loader2, AlertCircle, ShoppingBag, MonitorSmartphone, Package, Gift } from 'lucide-react';
+import { Loader2, AlertCircle, ShoppingBag, MonitorSmartphone, Package, Gift, Bell, BellOff } from 'lucide-react';
 
-// Dados base para o Calendário de Natal
 const RAW_LEAK_DATA = [
   { day: 15 }, { day: 16 }, { day: 17 }, { day: 18 }, { day: 19 },
   { day: 20 }, { day: 21 }, { day: 22 }, { day: 23 }, { day: 24 },
@@ -17,18 +17,75 @@ const RAW_LEAK_DATA = [
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'offers' | 'leaks'>('offers');
-  
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filtros de UI
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Todos']);
   const [selectedStores, setSelectedStores] = useState<string[]>(['Steam', 'Epic Games']);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['Jogo']);
 
+  // Notificações
+  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
+  const [notifPrefs, setNotifPrefs] = useState(() => {
+    const saved = localStorage.getItem('notif_prefs');
+    return saved ? JSON.parse(saved) : { platforms: ['PC'], stores: ['Epic Games', 'Steam'], enabled: true };
+  });
+
   const platforms = ['Todos', 'PC', 'Android'];
   const stores = ['Todas', 'Steam', 'Epic Games', 'GOG', 'Extra'];
   const types = ['Todos', 'Jogo', 'DLC'];
+
+  // Persistir preferências
+  useEffect(() => {
+    localStorage.setItem('notif_prefs', JSON.stringify(notifPrefs));
+  }, [notifPrefs]);
+
+  const checkAndNotify = useCallback((newGames: Game[]) => {
+    if (!notifPrefs.enabled || permissionStatus !== 'granted') return;
+
+    const lastSeenIds = JSON.parse(localStorage.getItem('last_seen_ids') || '[]');
+    const newMatches = newGames.filter(game => {
+      if (lastSeenIds.includes(game.id)) return false;
+
+      // Filtro de plataforma do usuário para notificação
+      const p = game.platforms.toLowerCase();
+      const matchesPlatform = notifPrefs.platforms.some((pref: string) => {
+        if (pref === 'PC') return p.includes('pc') || p.includes('steam') || p.includes('windows') || p.includes('epic');
+        if (pref === 'Android') return p.includes('android');
+        return false;
+      });
+
+      // Filtro de loja do usuário para notificação
+      const instr = game.instructions.toLowerCase();
+      const matchesStore = notifPrefs.stores.some((pref: string) => {
+        if (pref === 'Epic Games') return p.includes('epic') || instr.includes('epic');
+        if (pref === 'Steam') return p.includes('steam') || instr.includes('steam');
+        if (pref === 'GOG') return p.includes('gog') || instr.includes('gog');
+        if (pref === 'Extra') return !p.includes('epic') && !p.includes('steam') && !p.includes('gog');
+        return false;
+      });
+
+      return matchesPlatform && matchesStore;
+    });
+
+    if (newMatches.length > 0) {
+      newMatches.forEach(game => {
+        new Notification(`Novo Jogo Grátis!`, {
+          body: `${game.title} está disponível agora!`,
+          icon: game.thumbnail
+        });
+      });
+    }
+
+    // Atualiza IDs vistos
+    const allIds = Array.from(new Set([...lastSeenIds, ...newGames.map(g => g.id)]));
+    localStorage.setItem('last_seen_ids', JSON.stringify(allIds.slice(-200)));
+  }, [notifPrefs, permissionStatus]);
 
   useEffect(() => {
     const loadGames = async () => {
@@ -37,33 +94,36 @@ const App: React.FC = () => {
         const data = await fetchFreeGames();
         setGames(data.games);
         setError(null);
+        if (data.games.length > 0) {
+          checkAndNotify(data.games);
+        }
       } catch (err) {
-        setError("Não foi possível carregar as ofertas. Verifique sua conexão.");
+        setError("Não foi possível carregar as ofertas.");
       } finally {
         setLoading(false);
       }
     };
     loadGames();
-  }, []);
 
-  // Filtra os presentes de Natal para mostrar apenas o dia atual e os futuros
+    // Polling a cada 10 minutos para novos jogos
+    const interval = setInterval(() => {
+      loadGames();
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [checkAndNotify]);
+
   const christmasPresents = useMemo(() => {
     const now = new Date();
     const currentDay = now.getDate();
-    const currentMonth = now.getMonth(); // 0-11, 11 é Dezembro
-
-    // Se não for Dezembro, mostra todos (ou se for antes de Dezembro)
-    // Se for Janeiro em diante, talvez não mostre nada, mas vamos assumir o contexto de Dezembro
+    const currentMonth = now.getMonth();
     return RAW_LEAK_DATA
       .filter(item => {
-        if (currentMonth < 11) return true; // Ainda não é Dezembro
-        if (currentMonth > 11) return false; // Já passou de Dezembro
-        return item.day >= currentDay; // Em Dezembro, remove os que já passaram do dia atual
+        if (currentMonth < 11) return true;
+        if (currentMonth > 11) return false;
+        return item.day >= currentDay;
       })
-      .map(item => ({
-        title: "Presente Epic Games",
-        day: item.day
-      }));
+      .map(item => ({ title: "Presente Epic Games", day: item.day }));
   }, []);
 
   const toggleFilter = (currentList: string[], item: string, allValue: string) => {
@@ -74,6 +134,22 @@ const App: React.FC = () => {
       return newList.length === 0 ? [allValue] : newList;
     }
     return [...newList, item];
+  };
+
+  const handleToggleNotifPref = (type: 'platforms' | 'stores', value: string) => {
+    setNotifPrefs((prev: any) => {
+      const list = prev[type];
+      const newList = list.includes(value) 
+        ? list.filter((v: string) => v !== value)
+        : [...list, value];
+      return { ...prev, [type]: newList };
+    });
+  };
+
+  const requestNotifPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+    const res = await Notification.requestPermission();
+    setPermissionStatus(res);
   };
 
   const filteredGames = useMemo(() => {
@@ -120,7 +196,18 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gaming-900 flex flex-col font-sans">
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
+      
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        <NotificationSettings 
+          isOpen={isNotifModalOpen}
+          onClose={() => setIsNotifModalOpen(false)}
+          preferences={notifPrefs}
+          onTogglePreference={handleToggleNotifPref}
+          onToggleEnabled={() => setNotifPrefs((p: any) => ({ ...p, enabled: !p.enabled }))}
+          onRequestPermission={requestNotifPermission}
+          permissionStatus={permissionStatus}
+        />
+
         {activeTab === 'offers' && (
           <>
             {loading && (
@@ -138,9 +225,9 @@ const App: React.FC = () => {
             {!loading && !error && (
               <div className="space-y-8 animate-fade-in">
                 <div className="bg-gaming-800/50 border border-gaming-700 rounded-xl p-4 md:p-6 backdrop-blur-sm">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div className="md:col-span-3">
-                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-medium text-sm uppercase tracking-wider">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                    <div className="md:col-span-2">
+                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-bold text-[10px] uppercase tracking-wider">
                         <MonitorSmartphone className="w-4 h-4 text-gaming-accent" /> Plataforma
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -150,8 +237,8 @@ const App: React.FC = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="md:col-span-3">
-                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-medium text-sm uppercase tracking-wider">
+                    <div className="md:col-span-2">
+                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-bold text-[10px] uppercase tracking-wider">
                         <Package className="w-4 h-4 text-green-400" /> Tipo
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -162,7 +249,7 @@ const App: React.FC = () => {
                       </div>
                     </div>
                     <div className="md:col-span-6">
-                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-medium text-sm uppercase tracking-wider">
+                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-bold text-[10px] uppercase tracking-wider">
                         <ShoppingBag className="w-4 h-4 text-gaming-highlight" /> Loja
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -172,9 +259,24 @@ const App: React.FC = () => {
                         ))}
                       </div>
                     </div>
+                    {/* Botão de Notificação integrado na barra de filtros */}
+                    <div className="md:col-span-2 flex flex-col justify-end h-full">
+                       <div className="hidden md:block mb-3 h-4"></div> {/* Spacer for grid alignment */}
+                       <button 
+                         onClick={() => setIsNotifModalOpen(true)}
+                         className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border font-bold text-xs transition-all w-full shadow-lg ${
+                           notifPrefs.enabled && permissionStatus === 'granted'
+                             ? 'bg-gaming-accent border-gaming-accent text-white shadow-gaming-accent/20 hover:bg-gaming-accent/80'
+                             : 'bg-gaming-900 border-gaming-700 text-gray-400 hover:text-white hover:border-gaming-accent/50'
+                         }`}
+                       >
+                         {notifPrefs.enabled && permissionStatus === 'granted' ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                         <span>Alertas</span>
+                       </button>
+                    </div>
                   </div>
                 </div>
-                <div id="offers">
+                <div>
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2"><span className="w-2 h-8 bg-gaming-accent rounded-full"></span> Resultados</h2>
                     <span className="text-sm text-gray-400 bg-gaming-800 px-3 py-1 rounded-full border border-gaming-700">{filteredGames.length} Itens</span>
