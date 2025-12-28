@@ -15,13 +15,24 @@ const fetchWithProxy = async (targetUrl: string): Promise<any> => {
       const response = await fetch(proxyUrl);
       
       if (response.ok) {
-        return await response.json();
+        const text = await response.text();
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          // If allorigins returns a wrapper
+          if (text.includes('"contents":')) {
+             const wrapped = JSON.parse(text);
+             return JSON.parse(wrapped.contents);
+          }
+          throw e;
+        }
       }
     } catch (e) {
+      console.warn(`Proxy attempt failed for ${targetUrl}`);
       continue;
     }
   }
-  throw new Error("Conexão falhou.");
+  throw new Error("Conexão falhou em todos os proxies.");
 };
 
 export const fetchFreeGames = async (): Promise<GameDataResponse> => {
@@ -35,7 +46,7 @@ export const fetchFreeGames = async (): Promise<GameDataResponse> => {
       };
     }
   } catch (error) {
-    console.error("Fetch error:", error);
+    console.error("Fetch error in fetchFreeGames:", error);
   }
   return { games: [], summary: "", source: "Error" };
 };

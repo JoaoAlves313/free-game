@@ -42,24 +42,33 @@ const App: React.FC = () => {
     }
   });
 
-  // OneSignal v16 Initialization
+  // OneSignal v16 Initialization with robust error handling
   useEffect(() => {
-    window.OneSignal = window.OneSignal || [];
-    window.OneSignal.push(async function() {
-      await window.OneSignal.init({
-        appId: "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4",
-        allowLocalhostAsSecureOrigin: true,
-        notifyButton: { enable: false },
-      });
+    const initOneSignal = async () => {
+      window.OneSignal = window.OneSignal || [];
+      window.OneSignal.push(async function() {
+        try {
+          await window.OneSignal.init({
+            appId: "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4",
+            allowLocalhostAsSecureOrigin: true,
+            notifyButton: { enable: false },
+          });
 
-      // v16 API for checking permission status
-      setIsSubscribed(window.OneSignal.Notifications.permission);
-
-      // v16 API for listening to permission changes
-      window.OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
-        setIsSubscribed(permission);
+          // Defensive access to Notifications API
+          if (window.OneSignal.Notifications) {
+            setIsSubscribed(!!window.OneSignal.Notifications.permission);
+            
+            window.OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
+              setIsSubscribed(permission);
+            });
+          }
+        } catch (err) {
+          console.warn("OneSignal failed to initialize (likely blocked or network error):", err);
+        }
       });
-    });
+    };
+
+    initOneSignal();
   }, []);
 
   // Sync Preferences with OneSignal (v16 User Tags)
@@ -68,22 +77,28 @@ const App: React.FC = () => {
     
     if (isSubscribed) {
       window.OneSignal.push(() => {
-        const tags: Record<string, string> = {
-          notifications_enabled: notifPrefs.enabled ? "true" : "false"
-        };
-        
-        ['PC', 'Android'].forEach(p => {
-          tags[`platform_${p.toLowerCase()}`] = notifPrefs.platforms.includes(p) ? "true" : "false";
-        });
+        try {
+          const tags: Record<string, string> = {
+            notifications_enabled: notifPrefs.enabled ? "true" : "false"
+          };
+          
+          ['pc', 'android'].forEach(p => {
+            const hasPref = notifPrefs.platforms.some((pref: string) => pref.toLowerCase() === p);
+            tags[`platform_${p}`] = hasPref ? "true" : "false";
+          });
 
-        ['Steam', 'Epic Games', 'GOG', 'Extra'].forEach(s => {
-          const key = `store_${s.toLowerCase().replace(/\s+/g, '_')}`;
-          tags[key] = notifPrefs.stores.includes(s) ? "true" : "false";
-        });
+          ['steam', 'epic_games', 'gog', 'extra'].forEach(s => {
+            const hasStore = notifPrefs.stores.some((pref: string) => 
+              pref.toLowerCase().replace(/\s+/g, '_') === s
+            );
+            tags[`store_${s}`] = hasStore ? "true" : "false";
+          });
 
-        // v16 API for adding tags
-        if (window.OneSignal.User && window.OneSignal.User.addTags) {
-          window.OneSignal.User.addTags(tags);
+          if (window.OneSignal.User && typeof window.OneSignal.User.addTags === 'function') {
+            window.OneSignal.User.addTags(tags);
+          }
+        } catch (e) {
+          console.error("Error updating OneSignal tags:", e);
         }
       });
     }
@@ -96,7 +111,11 @@ const App: React.FC = () => {
   const checkAndNotify = useCallback((newGames: Game[]) => {
     if (!notifPrefs.enabled) return;
 
-    const lastSeenIds = JSON.parse(localStorage.getItem('last_seen_ids') || '[]');
+    let lastSeenIds: number[] = [];
+    try {
+      lastSeenIds = JSON.parse(localStorage.getItem('last_seen_ids') || '[]');
+    } catch (e) { lastSeenIds = []; }
+
     const newMatches = newGames.filter(game => {
       if (lastSeenIds.includes(game.id)) return false;
 
@@ -121,11 +140,15 @@ const App: React.FC = () => {
 
     if (newMatches.length > 0) {
       newMatches.forEach(game => {
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-           new Notification(`Novo Jogo Disponível!`, {
-            body: `${game.title} já pode ser resgatado.`,
-            icon: game.thumbnail
-          });
+        try {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+             new Notification(`Novo Jogo Disponível!`, {
+              body: `${game.title} já pode ser resgatado.`,
+              icon: game.thumbnail
+            });
+          }
+        } catch (e) {
+          console.warn("Could not fire native notification:", e);
         }
       });
     }
@@ -139,9 +162,9 @@ const App: React.FC = () => {
       setLoading(true);
       try {
         const data = await fetchFreeGames();
-        setGames(data.games);
+        setGames(data.games || []);
         setError(null);
-        if (data.games.length > 0) {
+        if (data.games && data.games.length > 0) {
           checkAndNotify(data.games);
         }
       } catch (err) {
@@ -191,21 +214,28 @@ const App: React.FC = () => {
 
   const requestNotifPermission = () => {
     window.OneSignal.push(() => {
-      // v16 API for requesting permission
-      if (window.OneSignal.Notifications && window.OneSignal.Notifications.requestPermission) {
-        window.OneSignal.Notifications.requestPermission();
+      try {
+        if (window.OneSignal.Notifications && typeof window.OneSignal.Notifications.requestPermission === 'function') {
+          window.OneSignal.Notifications.requestPermission();
+        }
+      } catch (e) {
+        console.error("Failed to request OneSignal permission:", e);
       }
     });
   };
 
   const handleSendTestNotif = () => {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      new Notification("Teste do FreeGameHunter", {
-        body: "Suas notificações estão configuradas corretamente!",
-        icon: "https://cdn-icons-png.flaticon.com/512/3408/3408455.png"
-      });
-    } else {
-      alert("Permissão de notificação não concedida ou navegador incompatível.");
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification("Teste do FreeGameHunter", {
+          body: "Suas notificações estão configuradas corretamente!",
+          icon: "https://cdn-icons-png.flaticon.com/512/3408/3408455.png"
+        });
+      } else {
+        alert("Permissão de notificação não concedida ou navegador incompatível.");
+      }
+    } catch (e) {
+      alert("Erro ao enviar notificação de teste.");
     }
   };
 
