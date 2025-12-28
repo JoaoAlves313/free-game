@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import GameCard from './components/GameCard';
@@ -21,6 +22,10 @@ const RAW_LEAK_DATA = [
   { day: 30 }, { day: 31 }
 ];
 
+const platforms = ['Todos', 'PC', 'Android'];
+const types = ['Todos', 'Jogo', 'DLC'];
+const stores = ['Todas', 'Steam', 'Epic Games', 'GOG', 'Extra'];
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'offers' | 'leaks'>('offers');
   const [games, setGames] = useState<Game[]>([]);
@@ -42,10 +47,13 @@ const App: React.FC = () => {
     }
   });
 
-  // OneSignal v16 Initialization with robust error handling
+  // OneSignal v16 Initialization
   useEffect(() => {
     const initOneSignal = async () => {
       window.OneSignal = window.OneSignal || [];
+      
+      const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+
       window.OneSignal.push(async function() {
         try {
           await window.OneSignal.init({
@@ -54,16 +62,15 @@ const App: React.FC = () => {
             notifyButton: { enable: false },
           });
 
-          // Defensive access to Notifications API
           if (window.OneSignal.Notifications) {
-            setIsSubscribed(!!window.OneSignal.Notifications.permission);
+            setIsSubscribed(window.OneSignal.Notifications.permission);
             
             window.OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
               setIsSubscribed(permission);
             });
           }
         } catch (err) {
-          console.warn("OneSignal failed to initialize (likely blocked or network error):", err);
+          console.error("Erro na inicialização do OneSignal:", err);
         }
       });
     };
@@ -71,7 +78,7 @@ const App: React.FC = () => {
     initOneSignal();
   }, []);
 
-  // Sync Preferences with OneSignal (v16 User Tags)
+  // Sync Tags with OneSignal
   useEffect(() => {
     localStorage.setItem('notif_prefs', JSON.stringify(notifPrefs));
     
@@ -98,15 +105,11 @@ const App: React.FC = () => {
             window.OneSignal.User.addTags(tags);
           }
         } catch (e) {
-          console.error("Error updating OneSignal tags:", e);
+          console.error("Erro ao sincronizar tags:", e);
         }
       });
     }
   }, [notifPrefs, isSubscribed]);
-
-  const platforms = ['Todos', 'PC', 'Android'];
-  const stores = ['Todas', 'Steam', 'Epic Games', 'GOG', 'Extra'];
-  const types = ['Todos', 'Jogo', 'DLC'];
 
   const checkAndNotify = useCallback((newGames: Game[]) => {
     if (!notifPrefs.enabled) return;
@@ -148,7 +151,7 @@ const App: React.FC = () => {
             });
           }
         } catch (e) {
-          console.warn("Could not fire native notification:", e);
+          console.warn("Erro ao disparar notificação nativa:", e);
         }
       });
     }
@@ -213,13 +216,32 @@ const App: React.FC = () => {
   };
 
   const requestNotifPermission = () => {
-    window.OneSignal.push(() => {
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    
+    if (!isSecure) {
+      alert("⚠️ Notificações WebPush exigem uma conexão segura (HTTPS).\n\nEste ambiente de visualização parece estar rodando em HTTP. Tente acessar a versão HTTPS do site para ativar os alertas.");
+      return;
+    }
+
+    window.OneSignal.push(async () => {
       try {
-        if (window.OneSignal.Notifications && typeof window.OneSignal.Notifications.requestPermission === 'function') {
-          window.OneSignal.Notifications.requestPermission();
+        if (window.OneSignal.Notifications) {
+          console.log("Iniciando pedido de permissão...");
+          
+          // Tenta o prompt nativo primeiro
+          const permission = await window.OneSignal.Notifications.requestPermission();
+          
+          // Se não houver resposta (bloqueado ou ignorado), tenta o Slidedown
+          if (!permission && window.OneSignal.Slidedown) {
+            console.log("Prompt nativo ignorado, forçando Slidedown...");
+            await window.OneSignal.Slidedown.showHttpPrompt();
+          }
+        } else {
+          alert("O OneSignal ainda não foi carregado. Aguarde um momento e tente novamente.");
         }
       } catch (e) {
-        console.error("Failed to request OneSignal permission:", e);
+        console.error("Erro ao solicitar permissão:", e);
+        alert("Não foi possível abrir o pedido de notificação. Verifique se seu navegador não está bloqueando popups.");
       }
     });
   };
@@ -232,10 +254,10 @@ const App: React.FC = () => {
           icon: "https://cdn-icons-png.flaticon.com/512/3408/3408455.png"
         });
       } else {
-        alert("Permissão de notificação não concedida ou navegador incompatível.");
+        alert("Permissão não concedida. Clique em 'Ativar Notificações' primeiro.");
       }
     } catch (e) {
-      alert("Erro ao enviar notificação de teste.");
+      console.error("Erro ao enviar teste:", e);
     }
   };
 
