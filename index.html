@@ -14,6 +14,27 @@
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4",
+          allowLocalhostAsSecureOrigin: true,
+          notifyButton: {
+            enable: false,
+          },
+          promptOptions: {
+            customlink: {
+              enabled: true, /* Força a ativação do Custom Link via código */
+              style: "button",
+              size: "medium",
+              color: {
+                button: "#8b5cf6",
+                text: "#ffffff",
+              },
+              text: {
+                subscribe: "Ativar Notificações",
+                unsubscribe: "Desativar Notificações",
+                explanation: "Receba alertas de jogos grátis!",
+              },
+              unsubscribeEnabled: true,
+            }
+          }
         });
       });
     </script>
@@ -79,6 +100,36 @@
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #64748b; 
+      }
+      
+      /* Estilização para garantir que o OneSignal injete o botão visível */
+      .onesignal-customlink-container {
+        width: 100% !important;
+        min-height: 50px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+      }
+
+      /* Caso o OneSignal injete um link/botão, garantimos que ele preencha o espaço e seja visível */
+      .onesignal-customlink-container button, 
+      .onesignal-customlink-container .onesignal-customlink-button {
+        background-color: #8b5cf6 !important;
+        color: white !important;
+        padding: 12px 24px !important;
+        border-radius: 12px !important;
+        font-weight: bold !important;
+        font-family: 'Inter', sans-serif !important;
+        border: none !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+        max-width: 280px !important;
+      }
+
+      .onesignal-customlink-container button:hover {
+        background-color: #7c3aed !important;
+        transform: translateY(-1px) !important;
       }
     </style>
     <script type="importmap">

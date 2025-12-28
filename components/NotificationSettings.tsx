@@ -58,11 +58,21 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
               </div>
               <div>
                 <p className="text-sm font-bold text-amber-200">Notificações Desativadas</p>
-                <p className="text-xs text-amber-200/60 mt-1">Para receber jogos grátis, use o link oficial abaixo para se inscrever.</p>
+                <p className="text-xs text-amber-200/60 mt-1">Habilite o alerta clicando no botão abaixo:</p>
               </div>
               
-              {/* Substituição do botão pelo comando oficial solicitado */}
-              <div className='onesignal-customlink-container w-full min-h-[44px] flex justify-center items-center py-2'></div>
+              {/* Container OneSignal */}
+              <div className="w-full flex flex-col items-center gap-2">
+                <div className='onesignal-customlink-container w-full'></div>
+                
+                {/* Fallback manual caso o OneSignal demore a injetar o botão no container */}
+                <button 
+                  onClick={onRequestPermission}
+                  className="text-[10px] text-amber-500/50 hover:text-amber-500 underline transition-colors"
+                >
+                  Não viu o botão? Clique aqui para tentar manualmente.
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -84,12 +94,15 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                 </button>
               </div>
 
+              {/* Botão de desinscrição/gerenciamento opcional do OneSignal */}
+              <div className='onesignal-customlink-container w-full opacity-50 hover:opacity-100 transition-opacity'></div>
+
               <button 
                 onClick={onSendTestNotification}
                 className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-gaming-accent border border-gaming-accent/30 rounded-lg hover:bg-gaming-accent/10 transition-colors"
               >
                 <Send className="w-3 h-3" />
-                Enviar Notificação de Teste
+                Enviar Notificação de Teste Local
               </button>
             </div>
           )}
@@ -139,8 +152,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
 
         <div className="p-4 bg-gaming-900 border-t border-gaming-700 text-center">
           <p className="text-[9px] text-gray-500 uppercase tracking-widest leading-relaxed">
-            As notificações funcionam via tecnologia WebPush.<br/>
-            Suas preferências são sincronizadas com o servidor OneSignal.
+            Sincronizado com OneSignal API v16
           </p>
         </div>
       </div>

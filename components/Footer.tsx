@@ -1,7 +1,7 @@
 import React from 'react';
 
 const Footer: React.FC = () => {
-  const APP_VERSION = "v1.0.7";
+  const APP_VERSION = "v1.0.9";
 
   return (
     <footer className="bg-gaming-900 border-t border-gaming-700 py-8 mt-12">
