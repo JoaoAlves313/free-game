@@ -1,158 +1,107 @@
 import React from 'react';
-import { Bell, X, Check, ShieldCheck, BellOff, Send } from 'lucide-react';
+import { Bell, X, ShieldCheck, BellOff, Info, CloudCheck, CloudOff, Zap, Server, Settings } from 'lucide-react';
 
 interface NotificationSettingsProps {
   isOpen: boolean;
   onClose: () => void;
-  preferences: {
-    platforms: string[];
-    stores: string[];
-    enabled: boolean;
-  };
-  onTogglePreference: (type: 'platforms' | 'stores', value: string) => void;
+  enabled: boolean;
+  isCloudSynced: boolean;
   onToggleEnabled: () => void;
   onRequestPermission: () => void;
-  onSendTestNotification: () => void;
   permissionStatus: string;
 }
 
 const NotificationSettings: React.FC<NotificationSettingsProps> = ({
   isOpen,
   onClose,
-  preferences,
-  onTogglePreference,
+  enabled,
+  isCloudSynced,
   onToggleEnabled,
   onRequestPermission,
-  onSendTestNotification,
   permissionStatus
 }) => {
   if (!isOpen) return null;
 
-  const platforms = ['PC', 'Android'];
-  const stores = ['Steam', 'Epic Games', 'GOG', 'Extra'];
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-gaming-800 border border-gaming-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-fade-in">
+      <div className="bg-gaming-800 border border-gaming-700 w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
         <div className="p-6 border-b border-gaming-700 flex items-center justify-between bg-gaming-900/50">
           <div className="flex items-center gap-3">
-            <div className="bg-gaming-accent/20 p-2 rounded-lg">
-              <Bell className="w-5 h-5 text-gaming-accent" />
+            <div className="bg-gaming-accent/20 p-2 rounded-xl">
+              <Zap className="w-5 h-5 text-yellow-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Alertas Push</h2>
+            <h2 className="text-lg font-black text-white uppercase tracking-tighter">Alertas 24h Cloud</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-gaming-700 rounded-lg">
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-2 hover:bg-gaming-700 rounded-xl">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-gray-300">
+              Nosso bot monitora <span className="text-gaming-highlight font-bold">Steam</span> e <span className="text-white font-bold">Epic</span> em tempo real.
+            </p>
+          </div>
+
           {permissionStatus !== 'granted' ? (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5 flex flex-col items-center text-center gap-4">
-              <div className="relative">
-                <BellOff className="w-10 h-10 text-amber-500" />
-                <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                </span>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-amber-200">Notificações Desativadas</p>
-                <p className="text-xs text-amber-200/60 mt-1">Habilite o alerta clicando no botão abaixo:</p>
-              </div>
-              
-              {/* Container OneSignal */}
-              <div className="w-full flex flex-col items-center gap-2">
+            <div className="space-y-6">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6 flex flex-col items-center text-center gap-4">
+                <BellOff className="w-10 h-10 text-amber-500 animate-pulse" />
+                <p className="text-xs text-amber-200/80 leading-relaxed uppercase font-bold tracking-widest">Aguardando Autorização</p>
                 <div className='onesignal-customlink-container w-full'></div>
-                
-                {/* Fallback manual caso o OneSignal demore a injetar o botão no container */}
-                <button 
-                  onClick={onRequestPermission}
-                  className="text-[10px] text-amber-500/50 hover:text-amber-500 underline transition-colors"
-                >
-                  Não viu o botão? Clique aqui para tentar manualmente.
-                </button>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-xl p-4">
-                <div className="flex items-center gap-3 text-green-400">
-                  <div className="bg-green-500/20 p-2 rounded-full">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
+              <div className="flex items-center justify-between bg-indigo-500/10 border border-indigo-500/30 rounded-2xl p-5">
+                <div className="flex items-center gap-3 text-indigo-400">
+                  <Server className="w-6 h-6" />
                   <div>
-                    <span className="text-sm font-bold block">Serviço Conectado</span>
-                    <span className="text-[10px] opacity-70">Você está pronto para receber alertas</span>
+                    <span className="text-xs font-black uppercase tracking-widest block">Bot de Nuvem</span>
+                    <span className="text-[10px] opacity-60">Ativo 24h/dia</span>
                   </div>
                 </div>
                 <button 
                   onClick={onToggleEnabled}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${preferences.enabled ? 'bg-gaming-accent' : 'bg-gaming-700'}`}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${enabled ? 'bg-indigo-500' : 'bg-gaming-700'}`}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${preferences.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
 
-              {/* Botão de desinscrição/gerenciamento opcional do OneSignal */}
-              <div className='onesignal-customlink-container w-full opacity-50 hover:opacity-100 transition-opacity'></div>
+              <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                isCloudSynced && enabled 
+                ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' 
+                : 'bg-gaming-900 border-gaming-700 text-gray-500'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {isCloudSynced && enabled ? <CloudCheck className="w-5 h-5" /> : <CloudOff className="w-5 h-5" />}
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest block">Status do Bot</span>
+                    <span className="text-[9px] opacity-60">{isCloudSynced && enabled ? 'Sincronizado via GitHub' : 'Aguardando Setup'}</span>
+                  </div>
+                </div>
+              </div>
 
-              <button 
-                onClick={onSendTestNotification}
-                className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-gaming-accent border border-gaming-accent/30 rounded-lg hover:bg-gaming-accent/10 transition-colors"
-              >
-                <Send className="w-3 h-3" />
-                Enviar Notificação de Teste Local
-              </button>
+              <div className="bg-gaming-900/80 p-4 rounded-2xl border border-gaming-700 space-y-3">
+                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <Settings className="w-3 h-3" /> Guia do Administrador
+                </div>
+                <ol className="text-[10px] text-gray-500 space-y-2 list-decimal ml-4">
+                  <li>Salve os arquivos no seu GitHub.</li>
+                  <li>Vá em Settings {'>'} Secrets {'>'} Actions.</li>
+                  <li>Adicione <b>ONESIGNAL_REST_API_KEY</b>.</li>
+                  <li>O robô rodará sozinho a cada 1 hora!</li>
+                </ol>
+              </div>
             </div>
           )}
-
-          <div className="space-y-5">
-            <div>
-              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3">Plataformas Alvo</h3>
-              <div className="flex flex-wrap gap-2">
-                {platforms.map(p => (
-                  <button
-                    key={p}
-                    onClick={() => onTogglePreference('platforms', p)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all ${
-                      preferences.platforms.includes(p)
-                        ? 'bg-gaming-accent border-gaming-accent text-white shadow-md shadow-gaming-accent/20'
-                        : 'bg-gaming-900 border-gaming-700 text-gray-400 hover:border-gray-500'
-                    }`}
-                  >
-                    {preferences.platforms.includes(p) && <Check className="w-3 h-3" />}
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3">Lojas de Interesse</h3>
-              <div className="flex flex-wrap gap-2">
-                {stores.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => onTogglePreference('stores', s)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all ${
-                      preferences.stores.includes(s)
-                        ? 'bg-gaming-highlight border-gaming-highlight text-gaming-900 shadow-md shadow-gaming-highlight/20'
-                        : 'bg-gaming-900 border-gaming-700 text-gray-400 hover:border-gray-500'
-                    }`}
-                  >
-                    {preferences.stores.includes(s) && <Check className="w-3 h-3" />}
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="p-4 bg-gaming-900 border-t border-gaming-700 text-center">
-          <p className="text-[9px] text-gray-500 uppercase tracking-widest leading-relaxed">
-            Sincronizado com OneSignal API v16
+          <p className="text-[9px] text-gray-600 uppercase tracking-[0.3em] font-bold">
+            GitHub Actions Integrated
           </p>
         </div>
       </div>

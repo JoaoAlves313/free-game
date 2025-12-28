@@ -6,7 +6,7 @@ import NotificationSettings from './components/NotificationSettings';
 import Footer from './components/Footer';
 import { fetchFreeGames } from './services/gameService';
 import { Game } from './types';
-import { Loader2, AlertCircle, ShoppingBag, MonitorSmartphone, Package, Gift, Bell, BellOff } from 'lucide-react';
+import { Loader2, AlertCircle, ShoppingBag, Gift, Bell, BellOff, MonitorSmartphone, Zap } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -22,9 +22,8 @@ const RAW_LEAK_DATA = [
   { day: 30 }, { day: 31 }
 ];
 
-const platforms = ['Todos', 'PC', 'Android'];
-const types = ['Todos', 'Jogo', 'DLC'];
-const stores = ['Todas', 'Steam', 'Epic Games', 'GOG', 'Extra'];
+const stores = ['Steam', 'Epic Games'];
+const platformOptions = ['Todos', 'PC', 'Android'];
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'offers' | 'leaks'>('offers');
@@ -32,68 +31,57 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Todos']);
   const [selectedStores, setSelectedStores] = useState<string[]>(['Steam', 'Epic Games']);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(['Jogo']);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Todos']);
 
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
-  const [notifPrefs, setNotifPrefs] = useState(() => {
-    try {
-      const saved = localStorage.getItem('notif_prefs');
-      return saved ? JSON.parse(saved) : { platforms: ['PC'], stores: ['Epic Games', 'Steam'], enabled: true };
-    } catch (e) {
-      return { platforms: ['PC'], stores: ['Epic Games', 'Steam'], enabled: true };
-    }
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
+  const [notifEnabled, setNotifEnabled] = useState(() => {
+    return localStorage.getItem('notif_enabled') !== 'false';
   });
 
-  // Sync state with OneSignal after it initializes in the HTML
+  const identifyStore = (game: Game) => {
+    const p = game.platforms.toLowerCase();
+    const i = game.instructions.toLowerCase();
+    if (p.includes('steam') || i.includes('steam')) return 'Steam';
+    if (p.includes('epic') || i.includes('epic')) return 'Epic Games';
+    return 'Other';
+  };
+
   useEffect(() => {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal: any) {
-      if (OneSignal.Notifications) {
-        setIsSubscribed(OneSignal.Notifications.permission);
-        OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
-          setIsSubscribed(permission);
-        });
-      }
+      setIsSubscribed(OneSignal.Notifications.permission);
+      OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
+        setIsSubscribed(permission);
+      });
     });
   }, []);
 
-  // Sync Tags with OneSignal
   useEffect(() => {
-    localStorage.setItem('notif_prefs', JSON.stringify(notifPrefs));
-    
+    localStorage.setItem('notif_enabled', String(notifEnabled));
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(function(OneSignal: any) {
-      if (isSubscribed && OneSignal.User && typeof OneSignal.User.addTags === 'function') {
+      if (isSubscribed && OneSignal.User) {
         try {
-          const tags: Record<string, string> = {
-            notifications_enabled: notifPrefs.enabled ? "true" : "false"
-          };
-          
-          ['pc', 'android'].forEach(p => {
-            const hasPref = notifPrefs.platforms.some((pref: string) => pref.toLowerCase() === p);
-            tags[`platform_${p}`] = hasPref ? "true" : "false";
+          OneSignal.User.addTags({
+            notifications_enabled: notifEnabled ? "true" : "false",
+            target_steam: "true",
+            target_epic: "true",
+            user_tier: "auto_monitor"
+          }).then(() => {
+            setIsCloudSynced(true);
           });
-
-          ['steam', 'epic_games', 'gog', 'extra'].forEach(s => {
-            const hasStore = notifPrefs.stores.some((pref: string) => 
-              pref.toLowerCase().replace(/\s+/g, '_') === s
-            );
-            tags[`store_${s}`] = hasStore ? "true" : "false";
-          });
-
-          OneSignal.User.addTags(tags);
         } catch (e) {
-          console.error("Erro ao sincronizar tags:", e);
+          console.error("Erro OneSignal Tags:", e);
         }
       }
     });
-  }, [notifPrefs, isSubscribed]);
+  }, [notifEnabled, isSubscribed]);
 
-  const checkAndNotify = useCallback((newGames: Game[]) => {
-    if (!notifPrefs.enabled) return;
+  const checkAndNotifyLocal = useCallback((newGames: Game[]) => {
+    if (!notifEnabled || Notification.permission !== 'granted') return;
 
     let lastSeenIds: number[] = [];
     try {
@@ -101,67 +89,48 @@ const App: React.FC = () => {
     } catch (e) { lastSeenIds = []; }
 
     const newMatches = newGames.filter(game => {
-      if (lastSeenIds.includes(game.id)) return false;
-
-      const p = game.platforms.toLowerCase();
-      const matchesPlatform = notifPrefs.platforms.some((pref: string) => {
-        if (pref === 'PC') return p.includes('pc') || p.includes('steam') || p.includes('windows') || p.includes('epic');
-        if (pref === 'Android') return p.includes('android');
-        return false;
-      });
-
-      const instr = game.instructions.toLowerCase();
-      const matchesStore = notifPrefs.stores.some((pref: string) => {
-        if (pref === 'Epic Games') return p.includes('epic') || instr.includes('epic');
-        if (pref === 'Steam') return p.includes('steam') || instr.includes('steam');
-        if (pref === 'GOG') return p.includes('gog') || instr.includes('gog');
-        if (pref === 'Extra') return !p.includes('epic') && !p.includes('steam') && !p.includes('gog');
-        return false;
-      });
-
-      return matchesPlatform && matchesStore;
+      const store = identifyStore(game);
+      return (store === 'Steam' || store === 'Epic Games') && !lastSeenIds.includes(game.id);
     });
 
     if (newMatches.length > 0) {
       newMatches.forEach(game => {
-        try {
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-             new Notification(`Novo Jogo Disponível!`, {
-              body: `${game.title} já pode ser resgatado.`,
-              icon: game.thumbnail
-            });
-          }
-        } catch (e) {
-          console.warn("Erro ao disparar notificação nativa:", e);
-        }
+        new Notification(`Novo Jogo: ${game.title}`, {
+          body: `Disponível agora na ${identifyStore(game)}!`,
+          icon: game.thumbnail
+        });
       });
     }
 
     const allIds = Array.from(new Set([...lastSeenIds, ...newGames.map(g => g.id)]));
     localStorage.setItem('last_seen_ids', JSON.stringify(allIds.slice(-200)));
-  }, [notifPrefs]);
+  }, [notifEnabled]);
 
   useEffect(() => {
     const loadGames = async () => {
       setLoading(true);
       try {
         const data = await fetchFreeGames();
-        setGames(data.games || []);
+        const filteredData = (data.games || []).filter(g => {
+          const s = identifyStore(g);
+          return s === 'Steam' || s === 'Epic Games';
+        });
+        
+        setGames(filteredData);
         setError(null);
-        if (data.games && data.games.length > 0) {
-          checkAndNotify(data.games);
+        if (filteredData.length > 0) {
+          checkAndNotifyLocal(filteredData);
         }
       } catch (err) {
-        setError("Não foi possível carregar as ofertas.");
+        setError("Erro na conexão.");
       } finally {
         setLoading(false);
       }
     };
     loadGames();
-
-    const interval = setInterval(loadGames, 10 * 60 * 1000);
+    const interval = setInterval(loadGames, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [checkAndNotify]);
+  }, [checkAndNotifyLocal]);
 
   const christmasPresents = useMemo(() => {
     const now = new Date();
@@ -176,110 +145,60 @@ const App: React.FC = () => {
       .map(item => ({ title: "Presente Epic Games", day: item.day }));
   }, []);
 
-  const toggleFilter = (currentList: string[], item: string, allValue: string) => {
-    if (item === allValue) return [allValue];
-    let newList = currentList.filter(i => i !== allValue);
-    if (newList.includes(item)) {
-      newList = newList.filter(i => i !== item);
-      return newList.length === 0 ? [allValue] : newList;
+  const toggleStore = (store: string) => {
+    setSelectedStores(prev => 
+      prev.includes(store) 
+        ? (prev.length > 1 ? prev.filter(s => s !== store) : prev) 
+        : [...prev, store]
+    );
+  };
+
+  const togglePlatform = (platform: string) => {
+    if (platform === 'Todos') {
+      setSelectedPlatforms(['Todos']);
+      return;
     }
-    return [...newList, item];
-  };
-
-  const handleToggleNotifPref = (type: 'platforms' | 'stores', value: string) => {
-    setNotifPrefs((prev: any) => {
-      const list = prev[type];
-      const newList = list.includes(value) 
-        ? list.filter((v: string) => v !== value)
-        : [...list, value];
-      return { ...prev, [type]: newList };
-    });
-  };
-
-  const requestNotifPermission = () => {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async (OneSignal: any) => {
-      try {
-        if (OneSignal.Notifications) {
-          await OneSignal.Notifications.requestPermission();
-        } else {
-          console.warn("OneSignal.Notifications não disponível.");
-        }
-      } catch (e) {
-        console.error("Erro OneSignal:", e);
+    setSelectedPlatforms(prev => {
+      let next = prev.filter(p => p !== 'Todos');
+      if (next.includes(platform)) {
+        next = next.filter(p => p !== platform);
+        return next.length === 0 ? ['Todos'] : next;
       }
+      return [...next, platform];
     });
-  };
-
-  const handleSendTestNotif = () => {
-    try {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification("Teste FreeGameHunter", {
-          body: "As notificações locais estão funcionando!",
-          icon: "https://cdn-icons-png.flaticon.com/512/3408/3408455.png"
-        });
-      } else {
-        alert("Permissão negada ou ambiente sem suporte a notificações.");
-      }
-    } catch (e) {
-      console.error("Erro ao enviar teste:", e);
-    }
   };
 
   const filteredGames = useMemo(() => {
     return games.filter(game => {
+      const storeMatch = selectedStores.includes(identifyStore(game));
+      if (!storeMatch) return false;
+      if (selectedPlatforms.includes('Todos')) return true;
       const p = game.platforms.toLowerCase();
-      const instr = game.instructions.toLowerCase();
-      
-      let platformMatch = selectedPlatforms.includes('Todos');
-      if (!platformMatch) {
-        if (selectedPlatforms.includes('PC')) {
-          if (p.includes('pc') || p.includes('steam') || p.includes('windows') || p.includes('epic')) platformMatch = true;
-        }
-        if (selectedPlatforms.includes('Android')) {
-          if (p.includes('android')) platformMatch = true;
-        }
+      let platformMatch = false;
+      if (selectedPlatforms.includes('PC')) {
+        if (p.includes('pc') || p.includes('steam') || p.includes('windows') || p.includes('epic')) platformMatch = true;
       }
-
-      let storeMatch = selectedStores.includes('Todas');
-      if (!storeMatch) {
-        for (const store of selectedStores) {
-          if (store === 'Extra') {
-            const isMainStore = p.includes('steam') || p.includes('epic') || p.includes('gog') || 
-                                instr.includes('steam') || instr.includes('epic') || instr.includes('gog');
-            if (!isMainStore) { storeMatch = true; break; }
-          } else {
-            const storeLower = store.toLowerCase();
-            if (p.includes(storeLower) || instr.includes(storeLower) || (store === 'Epic Games' && p.includes('epic'))) {
-              storeMatch = true; break;
-            }
-          }
-        }
+      if (selectedPlatforms.includes('Android')) {
+        if (p.includes('android')) platformMatch = true;
       }
-
-      let typeMatch = selectedTypes.includes('Todos');
-      if (!typeMatch) {
-        if (selectedTypes.includes('Jogo') && game.type === 'Game') typeMatch = true;
-        if (selectedTypes.includes('DLC') && (game.type === 'DLC' || game.type === 'Expansion')) typeMatch = true;
-      }
-
-      return platformMatch && storeMatch && typeMatch;
+      return platformMatch;
     });
-  }, [games, selectedPlatforms, selectedStores, selectedTypes]);
+  }, [games, selectedStores, selectedPlatforms]);
 
   return (
-    <div className="min-h-screen bg-gaming-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-gaming-900 flex flex-col font-sans text-slate-200">
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
       
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <NotificationSettings 
           isOpen={isNotifModalOpen}
           onClose={() => setIsNotifModalOpen(false)}
-          preferences={notifPrefs}
-          onTogglePreference={handleToggleNotifPref}
-          onToggleEnabled={() => setNotifPrefs((p: any) => ({ ...p, enabled: !p.enabled }))}
-          onRequestPermission={requestNotifPermission}
-          onSendTestNotification={handleSendTestNotif}
+          enabled={notifEnabled}
+          isCloudSynced={isCloudSynced}
+          onToggleEnabled={() => setNotifEnabled(!notifEnabled)}
+          onRequestPermission={() => {
+            window.OneSignalDeferred.push((OS: any) => OS.Notifications.requestPermission());
+          }}
           permissionStatus={isSubscribed ? 'granted' : 'default'}
         />
 
@@ -288,100 +207,94 @@ const App: React.FC = () => {
             {loading && (
               <div className="flex flex-col items-center justify-center py-20">
                 <Loader2 className="w-12 h-12 text-gaming-accent animate-spin mb-4" />
-                <p className="text-gray-400">Carregando ofertas...</p>
+                <p className="text-gray-400">Escaneando lojas...</p>
               </div>
             )}
-            {error && !loading && (
-              <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-6 text-center max-w-2xl mx-auto">
-                <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-2" />
-                <h3 className="text-lg font-bold text-red-200">{error}</h3>
-              </div>
-            )}
+            
             {!loading && !error && (
               <div className="space-y-8 animate-fade-in">
-                <div className="bg-gaming-800/50 border border-gaming-700 rounded-xl p-4 md:p-6 backdrop-blur-sm">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                    <div className="md:col-span-2">
-                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-bold text-[10px] uppercase tracking-wider">
-                        <MonitorSmartphone className="w-4 h-4 text-gaming-accent" /> Plataforma
+                <div className="bg-gaming-800/50 border border-gaming-700 rounded-2xl p-4 md:p-6 backdrop-blur-md flex flex-col lg:flex-row items-center justify-between gap-6">
+                  <div className="flex flex-col sm:flex-row gap-6 w-full lg:w-auto">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-[0.2em]">
+                        <ShoppingBag className="w-3 h-3 text-gaming-highlight" /> Filtrar Loja
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {platforms.map(p => (
-                          <button key={p} onClick={() => setSelectedPlatforms(toggleFilter(selectedPlatforms, p, 'Todos'))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedPlatforms.includes(p) ? 'bg-gaming-accent text-white border-gaming-accent shadow-sm' : 'bg-gaming-900 text-gray-400 border-gaming-700 hover:text-white'}`}>{p}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-bold text-[10px] uppercase tracking-wider">
-                        <Package className="w-4 h-4 text-green-400" /> Tipo
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {types.map(t => (
-                          <button key={t} onClick={() => setSelectedTypes(toggleFilter(selectedTypes, t, 'Todos'))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedTypes.includes(t) ? 'bg-green-600 text-white border-green-500 shadow-sm' : 'bg-gaming-900 text-gray-400 border-gaming-700 hover:text-white'}`}>{t}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="md:col-span-6">
-                      <div className="flex items-center gap-2 mb-3 text-gray-300 font-bold text-[10px] uppercase tracking-wider">
-                        <ShoppingBag className="w-4 h-4 text-gaming-highlight" /> Loja
-                      </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex gap-2">
                         {stores.map(s => (
-                          <button key={s} onClick={() => setSelectedStores(toggleFilter(selectedStores, s, 'Todas'))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedStores.includes(s) ? 'bg-gaming-highlight text-gaming-900 font-bold border-gaming-highlight shadow-sm' : 'bg-gaming-900 text-gray-400 border-gaming-700 hover:text-white'}`}>{s}</button>
+                          <button key={s} onClick={() => toggleStore(s)}
+                            className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition-all ${selectedStores.includes(s) ? 'bg-gaming-accent text-white border-gaming-accent shadow-md shadow-gaming-accent/10' : 'bg-gaming-900/50 text-gray-500 border-gaming-700 hover:border-gray-500'}`}>
+                            {s}
+                          </button>
                         ))}
                       </div>
                     </div>
-                    <div className="md:col-span-2 flex flex-col justify-end h-full">
-                       <div className="hidden md:block mb-3 h-4"></div>
-                       <button 
-                         onClick={() => setIsNotifModalOpen(true)}
-                         className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg border font-bold text-xs transition-all w-full shadow-lg group ${
-                           isSubscribed && notifPrefs.enabled
-                             ? 'bg-gaming-accent border-gaming-accent text-white shadow-gaming-accent/20 hover:scale-[1.02]'
-                             : 'bg-gaming-900 border-gaming-700 text-gray-400 hover:text-white hover:border-gaming-accent/50'
-                         }`}
-                       >
-                         {isSubscribed && notifPrefs.enabled ? <Bell className="w-4 h-4 animate-swing group-hover:scale-110" /> : <BellOff className="w-4 h-4" />}
-                         <span>{isSubscribed && notifPrefs.enabled ? 'Sinos: ON' : 'Alertas'}</span>
-                       </button>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-[0.2em]">
+                        <MonitorSmartphone className="w-3 h-3 text-emerald-400" /> Plataforma
+                      </div>
+                      <div className="flex gap-2">
+                        {platformOptions.map(p => (
+                          <button key={p} onClick={() => togglePlatform(p)}
+                            className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition-all ${selectedPlatforms.includes(p) ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-900/10' : 'bg-gaming-900/50 text-gray-500 border-gaming-700 hover:border-gray-500'}`}>
+                            {p}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="w-full lg:w-auto">
+                    <button 
+                      onClick={() => setIsNotifModalOpen(true)}
+                      className={`flex items-center justify-center gap-3 px-8 py-3 rounded-xl border font-black text-xs transition-all w-full md:w-64 group ${
+                        isSubscribed && notifEnabled
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-xl shadow-indigo-900/20'
+                          : 'bg-gaming-900 border-gaming-700 text-gray-400 hover:text-white hover:border-gaming-accent'
+                      }`}
+                    >
+                      {isSubscribed && notifEnabled ? <Zap className="w-4 h-4 animate-pulse text-yellow-300" /> : <BellOff className="w-4 h-4" />}
+                      <span className="uppercase tracking-widest">{isSubscribed && notifEnabled ? 'Monitoramento Ativo' : 'Ativar Alertas'}</span>
+                    </button>
                   </div>
                 </div>
+
                 <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2"><span className="w-2 h-8 bg-gaming-accent rounded-full"></span> Resultados</h2>
-                    <span className="text-sm text-gray-400 bg-gaming-800 px-3 py-1 rounded-full border border-gaming-700">{filteredGames.length} Itens</span>
+                  <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                      <span className="w-1.5 h-8 bg-gaming-accent rounded-full"></span> 
+                      Steam & Epic Games
+                    </h2>
+                    <span className="text-[10px] font-mono text-gray-500 bg-gaming-800 px-4 py-1.5 rounded-full border border-gaming-700 uppercase tracking-widest">
+                      {filteredGames.length} ofertas agora
+                    </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                    {filteredGames.map((game) => <GameCard key={game.id} game={game} />)}
-                  </div>
+                  
+                  {filteredGames.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+                      {filteredGames.map((game) => <GameCard key={game.id} game={game} />)}
+                    </div>
+                  ) : (
+                    <div className="text-center py-20 bg-gaming-800/20 rounded-3xl border border-dashed border-gaming-700">
+                      <p className="text-gray-500">Nenhuma oferta encontrada.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </>
         )}
+
         {activeTab === 'leaks' && (
           <div className="space-y-8 animate-fade-in">
             <div className="text-center py-8">
-              <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-green-500 inline-flex items-center gap-3">
-                <Gift className="w-8 h-8 text-red-500" /> 
-                Calendário de Natal Epic Games 
-                <Gift className="w-8 h-8 text-green-500" />
+              <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-green-500 inline-flex items-center gap-3">
+                <Gift className="w-8 h-8 text-red-500" /> Calendário de Natal <Gift className="w-8 h-8 text-green-500" />
               </h2>
-              <p className="text-gray-400 mt-2 max-w-2xl mx-auto italic font-bold">Resgate seus presentes diários</p>
             </div>
-            {christmasPresents.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {christmasPresents.map((leak, index) => <HypothesisCard key={index} title={leak.title} day={leak.day} />)}
-              </div>
-            ) : (
-              <div className="text-center py-20 bg-gaming-800/30 rounded-2xl border border-gaming-700">
-                 <p className="text-gray-500 font-medium">O calendário de Natal deste ano já se encerrou. Até o próximo!</p>
-              </div>
-            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {christmasPresents.map((leak, index) => <HypothesisCard key={index} title={leak.title} day={leak.day} />)}
+            </div>
           </div>
         )}
       </main>
