@@ -22,7 +22,6 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
         return "Expirado";
       }
 
-      // Check if expiring within 24 hours
       setIsExpiringSoon(distance < 24 * 60 * 60 * 1000);
 
       const days = Math.floor(distance / (1000 * 60 * 60 * 24));
@@ -35,10 +34,7 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
       return `${hours}h ${minutes}m`;
     };
 
-    // Initial calculation
     setTimeLeft(calculateTimeLeft());
-
-    // Update every minute
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
     }, 60000);
@@ -54,19 +50,39 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
     return <HelpCircle className="w-4 h-4" />;
   };
 
-  const getStoreBadgeColor = (platforms: string) => {
+  const identifyPlatformType = (platforms: string) => {
     const p = platforms.toLowerCase();
-    if (p.includes('epic')) return 'bg-gray-800 text-white border-gray-600';
-    if (p.includes('steam')) return 'bg-blue-900 text-blue-100 border-blue-700';
-    if (p.includes('gog')) return 'bg-purple-900 text-purple-100 border-purple-700';
-    if (p.includes('ubisoft')) return 'bg-blue-600 text-white border-blue-500';
-    if (p.includes('itch')) return 'bg-red-900 text-red-100 border-red-700';
-    return 'bg-gaming-700 text-gray-200';
+    if (p.includes('android') || p.includes('ios')) return 'Celular';
+    return 'PC';
   };
+
+  const getPlatformBadgeColor = (type: string) => {
+    if (type === 'Celular') return 'bg-emerald-900 text-emerald-100 border-emerald-700';
+    return 'bg-indigo-900 text-indigo-100 border-indigo-700';
+  };
+
+  const identifyStore = (game: Game) => {
+    const p = game.platforms.toLowerCase();
+    const i = game.instructions.toLowerCase();
+    
+    if (p.includes('steam') || i.includes('steam')) return 'Steam';
+    if (p.includes('epic') || i.includes('epic')) return 'Epic Games';
+    if (p.includes('gog') || i.includes('gog')) return 'GOG';
+    return 'Extra';
+  };
+
+  const getStoreBadgeColor = (store: string) => {
+    if (store === 'Epic Games') return 'bg-gray-800 text-white border-gray-600';
+    if (store === 'Steam') return 'bg-blue-900 text-blue-100 border-blue-700';
+    if (store === 'GOG') return 'bg-purple-900 text-purple-100 border-purple-700';
+    return 'bg-amber-900/50 text-amber-200 border-amber-700/50';
+  };
+
+  const storeName = identifyStore(game);
+  const platformType = identifyPlatformType(game.platforms);
 
   return (
     <div className="group relative bg-gaming-800 rounded-xl overflow-hidden border border-gaming-700 hover:border-gaming-accent transition-all duration-300 shadow-lg hover:shadow-gaming-accent/20 flex flex-col h-full">
-      {/* Image Container */}
       <div className="relative aspect-video overflow-hidden bg-black">
         <img 
           src={game.thumbnail} 
@@ -85,7 +101,6 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
            )}
         </div>
 
-        {/* Countdown Clock - Only shows if end_date is available */}
         {timeLeft && timeLeft !== 'Expirado' && (
           <div className={`absolute bottom-0 left-0 right-0 py-1 px-3 backdrop-blur-md border-t flex items-center justify-center gap-2 text-xs font-bold ${
             isExpiringSoon 
@@ -98,15 +113,18 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
         )}
       </div>
       
-      {/* Content */}
       <div className="p-5 flex flex-col flex-grow">
         <div className="flex justify-between items-start mb-3 gap-2">
-           <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded border truncate max-w-[70%] ${getStoreBadgeColor(game.platforms)}`}>
-             {game.platforms.split(',')[0]}
-           </span>
+           <div className="flex flex-wrap gap-1.5">
+             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded border truncate ${getStoreBadgeColor(storeName)}`}>
+               {storeName}
+             </span>
+             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded border truncate ${getPlatformBadgeColor(platformType)}`}>
+               {platformType}
+             </span>
+           </div>
            <div className="flex items-center text-gray-400 gap-1 text-xs shrink-0">
               {getPlatformIcon(game.platforms)}
-              <span className="sr-only">{game.platforms}</span>
            </div>
         </div>
 
@@ -122,7 +140,7 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
            <div className="flex flex-col gap-0.5">
              <div className="flex items-center gap-1 text-gray-500 text-[10px]">
                <Tag className="w-3 h-3" />
-               <span>{game.type}</span>
+               <span className="truncate max-w-[80px]">{game.type}</span>
              </div>
              {game.published_date && (
                <div className="flex items-center gap-1 text-gray-600 text-[10px]">

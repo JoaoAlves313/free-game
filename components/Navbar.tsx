@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gamepad2, Gift, Sparkles } from 'lucide-react';
+import { Gamepad2, Gift, Snowflake } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'offers' | 'leaks';
@@ -39,12 +39,12 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange }) => {
                 onClick={() => onTabChange('leaks')}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
                   activeTab === 'leaks' 
-                    ? 'bg-purple-900/40 text-purple-100 shadow-md shadow-purple-500/10 border border-purple-500/50' 
-                    : 'text-gray-400 hover:text-purple-300 hover:bg-purple-900/20'
+                    ? 'bg-red-900/40 text-red-100 shadow-md shadow-red-500/10 border border-red-500/50' 
+                    : 'text-gray-400 hover:text-red-300 hover:bg-red-900/20'
                 }`}
               >
-                <Sparkles className={`w-4 h-4 ${activeTab === 'leaks' ? 'text-purple-400' : 'text-gray-500'}`} />
-                <span>Hipóteses</span>
+                <Snowflake className={`w-4 h-4 ${activeTab === 'leaks' ? 'text-red-400' : 'text-gray-500'}`} />
+                <span>Natal</span>
               </button>
             </div>
           </div>
