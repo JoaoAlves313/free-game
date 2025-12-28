@@ -52,13 +52,13 @@ const App: React.FC = () => {
     const initOneSignal = async () => {
       window.OneSignal = window.OneSignal || [];
       
-      const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-
       window.OneSignal.push(async function() {
         try {
           await window.OneSignal.init({
             appId: "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4",
             allowLocalhostAsSecureOrigin: true,
+            serviceWorkerPath: "OneSignalSDKWorker.js", // Explicitamente na raiz
+            serviceWorkerParam: { scope: "/" }, // Escopo global
             notifyButton: { enable: false },
           });
 
@@ -66,11 +66,12 @@ const App: React.FC = () => {
             setIsSubscribed(window.OneSignal.Notifications.permission);
             
             window.OneSignal.Notifications.addEventListener("permissionChange", (permission: boolean) => {
+              console.log("Status de permissão alterado:", permission);
               setIsSubscribed(permission);
             });
           }
         } catch (err) {
-          console.error("Erro na inicialização do OneSignal:", err);
+          console.error("Erro crítico na inicialização do OneSignal:", err);
         }
       });
     };
@@ -219,29 +220,27 @@ const App: React.FC = () => {
     const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
     
     if (!isSecure) {
-      alert("⚠️ Notificações WebPush exigem uma conexão segura (HTTPS).\n\nEste ambiente de visualização parece estar rodando em HTTP. Tente acessar a versão HTTPS do site para ativar os alertas.");
+      alert("⚠️ ERRO DE SEGURANÇA:\n\nNotificações WebPush EXIGEM HTTPS.\nO site não pode solicitar permissão em uma conexão insegura (HTTP).\n\nSe você está em um ambiente de desenvolvimento local, use 'localhost'.");
       return;
     }
 
     window.OneSignal.push(async () => {
       try {
         if (window.OneSignal.Notifications) {
-          console.log("Iniciando pedido de permissão...");
+          console.log("Tentando abrir prompt OneSignal...");
+          await window.OneSignal.Notifications.requestPermission();
           
-          // Tenta o prompt nativo primeiro
-          const permission = await window.OneSignal.Notifications.requestPermission();
-          
-          // Se não houver resposta (bloqueado ou ignorado), tenta o Slidedown
-          if (!permission && window.OneSignal.Slidedown) {
-            console.log("Prompt nativo ignorado, forçando Slidedown...");
-            await window.OneSignal.Slidedown.showHttpPrompt();
-          }
+          // Fallback para Slidedown se o nativo for bloqueado/ignorado
+          setTimeout(async () => {
+             if (window.OneSignal.Notifications.permission !== 'granted' && window.OneSignal.Slidedown) {
+               await window.OneSignal.Slidedown.showHttpPrompt();
+             }
+          }, 1000);
         } else {
-          alert("O OneSignal ainda não foi carregado. Aguarde um momento e tente novamente.");
+          alert("O SDK do OneSignal ainda não carregou. Tente novamente em alguns segundos.");
         }
       } catch (e) {
         console.error("Erro ao solicitar permissão:", e);
-        alert("Não foi possível abrir o pedido de notificação. Verifique se seu navegador não está bloqueando popups.");
       }
     });
   };
@@ -249,12 +248,12 @@ const App: React.FC = () => {
   const handleSendTestNotif = () => {
     try {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification("Teste do FreeGameHunter", {
-          body: "Suas notificações estão configuradas corretamente!",
+        new Notification("Teste FreeGameHunter", {
+          body: "As notificações locais estão funcionando!",
           icon: "https://cdn-icons-png.flaticon.com/512/3408/3408455.png"
         });
       } else {
-        alert("Permissão não concedida. Clique em 'Ativar Notificações' primeiro.");
+        alert("Permissão do navegador ainda não concedida.");
       }
     } catch (e) {
       console.error("Erro ao enviar teste:", e);
