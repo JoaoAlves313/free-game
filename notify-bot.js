@@ -1,5 +1,5 @@
 /**
- * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.6.0
+ * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.6.1
  * Configuração: GitHub Secrets (Seguro)
  */
 
@@ -105,8 +105,15 @@ async function sendPushNotification(game, store) {
       },
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
-        headings: { "pt": `🎁 JOGO GRÁTIS: ${game.title}` },
-        contents: { "pt": `Novo drop na ${store}! Clique para resgatar agora.` },
+        // OneSignal exige 'en' como fallback obrigatório
+        headings: { 
+          "en": `🎁 FREE GAME: ${game.title}`,
+          "pt": `🎁 JOGO GRÁTIS: ${game.title}` 
+        },
+        contents: { 
+          "en": `New giveaway on ${store}! Click to claim now.`,
+          "pt": `Novo drop na ${store}! Clique para resgatar agora.` 
+        },
         included_segments: ["All"],
         chrome_web_icon: game.thumbnail,
         url: game.open_giveaway_url,
