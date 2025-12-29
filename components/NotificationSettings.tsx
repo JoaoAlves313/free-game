@@ -40,7 +40,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <div className="text-center space-y-2">
             <p className="text-sm text-gray-300">
-              Nosso bot monitora <span className="text-gaming-highlight font-bold">Steam</span> e <span className="text-white font-bold">Epic</span> em tempo real.
+              Nosso bot monitora <span className="text-gaming-highlight font-bold">todos</span> os lançamentos da <span className="text-white font-bold">Steam/Epic</span> simultaneamente.
             </p>
           </div>
 
@@ -59,7 +59,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                   <Server className="w-6 h-6" />
                   <div>
                     <span className="text-xs font-black uppercase tracking-widest block">Bot de Nuvem</span>
-                    <span className="text-[10px] opacity-60">Ativo 24h/dia</span>
+                    <span className="text-[10px] opacity-60">Ativo 24h/dia (V1.4.0)</span>
                   </div>
                 </div>
                 <button 
@@ -79,21 +79,18 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                   {isCloudSynced && enabled ? <CloudCheck className="w-5 h-5" /> : <CloudOff className="w-5 h-5" />}
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-widest block">Status do Bot</span>
-                    <span className="text-[9px] opacity-60">{isCloudSynced && enabled ? 'Sincronizado via GitHub' : 'Aguardando Setup'}</span>
+                    <span className="text-[9px] opacity-60">{isCloudSynced && enabled ? 'Sincronizado com Multi-Release' : 'Aguardando Setup'}</span>
                   </div>
                 </div>
               </div>
 
               <div className="bg-gaming-900/80 p-4 rounded-2xl border border-gaming-700 space-y-3">
                 <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  <Settings className="w-3 h-3" /> Guia do Administrador
+                  <Settings className="w-3 h-3" /> Monitor Inteligente
                 </div>
-                <ol className="text-[10px] text-gray-500 space-y-2 list-decimal ml-4">
-                  <li>Salve os arquivos no seu GitHub.</li>
-                  <li>Vá em Settings {'>'} Secrets {'>'} Actions.</li>
-                  <li>Adicione <b>ONESIGNAL_REST_API_KEY</b>.</li>
-                  <li>O robô rodará sozinho a cada 1 hora!</li>
-                </ol>
+                <p className="text-[10px] text-gray-500 leading-tight">
+                  Se 2 ou mais jogos saírem ao mesmo tempo, o robô enviará uma notificação para cada um, garantindo que você não perca nada.
+                </p>
               </div>
             </div>
           )}
@@ -101,7 +98,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
 
         <div className="p-4 bg-gaming-900 border-t border-gaming-700 text-center">
           <p className="text-[9px] text-gray-600 uppercase tracking-[0.3em] font-bold">
-            GitHub Actions Integrated
+            Cloud Monitor v1.4.0 Active
           </p>
         </div>
       </div>
