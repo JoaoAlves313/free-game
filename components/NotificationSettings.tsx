@@ -42,7 +42,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <div className="text-center space-y-2">
             <p className="text-sm text-gray-300">
-              Nosso bot monitora <span className="text-gaming-highlight font-bold">todos</span> os lançamentos da <span className="text-white font-bold">Steam/Epic</span> simultaneamente.
+              Mandamos notificação quando sair algum jogo de graça!
             </p>
           </div>
 
