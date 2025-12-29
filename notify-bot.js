@@ -1,17 +1,22 @@
 /**
- * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.5.0
- * Lógica Baseada em Histórico: Garante que nenhum jogo seja perdido, independente do delay da API.
+ * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.5.1
+ * Lógica Baseada em Histórico - Versão ES Module (ESM)
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Em ES Modules, precisamos definir o __dirname manualmente
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
 const HISTORY_FILE = path.join(__dirname, 'notified-ids.json');
 
 async function checkGamesAndNotify() {
-  console.log("--- [" + new Date().toISOString() + "] INICIANDO MONITORAMENTO PERSISTENTE ---");
+  console.log("--- [" + new Date().toISOString() + "] INICIANDO MONITORAMENTO PERSISTENTE (ESM) ---");
   
   if (!ONESIGNAL_REST_API_KEY) {
     console.error("ERRO: ONESIGNAL_REST_API_KEY não configurada!");
@@ -22,8 +27,10 @@ async function checkGamesAndNotify() {
   let notifiedIds = [];
   if (fs.existsSync(HISTORY_FILE)) {
     try {
-      notifiedIds = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+      const data = fs.readFileSync(HISTORY_FILE, 'utf8');
+      notifiedIds = JSON.parse(data);
     } catch (e) {
+      console.warn("Aviso: Histórico corrompido ou vazio, iniciando novo.");
       notifiedIds = [];
     }
   }
@@ -43,8 +50,7 @@ async function checkGamesAndNotify() {
       return (p.includes('steam') || p.includes('epic')) && game.status === "Active";
     });
 
-    // 3. Identificar jogos que NUNCA foram notificados (independente da data de publicação)
-    // Limitamos a jogos publicados nas últimas 48h para evitar disparar lixo antigo se a API resetar
+    // 3. Identificar jogos novos
     const now = Date.now();
     const fortyEightHours = 48 * 60 * 60 * 1000;
 
@@ -57,30 +63,27 @@ async function checkGamesAndNotify() {
     });
 
     if (newGamesToNotify.length > 0) {
-      console.log(`🎁 ${newGamesToNotify.length} novos jogos detectados para notificação!`);
+      console.log(`🎁 ${newGamesToNotify.length} novos jogos detectados!`);
       
       for (const game of newGamesToNotify) {
         const store = game.platforms.toLowerCase().includes('steam') ? 'Steam' : 'Epic Games';
-        console.log(`Disparando: ${game.title}`);
+        console.log(`Disparando Push: ${game.title}`);
         await sendPushNotification(game, store);
         
-        // Adicionar ao histórico para não repetir nunca mais
         notifiedIds.push(game.id);
-        
-        // Delay anti-spam
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
-      // 4. Salvar histórico atualizado (manter apenas os últimos 500 IDs para o arquivo não crescer infinito)
+      // 4. Salvar histórico (limitado a 500 itens)
       const updatedHistory = notifiedIds.slice(-500);
       fs.writeFileSync(HISTORY_FILE, JSON.stringify(updatedHistory, null, 2));
-      console.log("✅ Histórico atualizado localmente.");
+      console.log("✅ Histórico atualizado.");
     } else {
-      console.log("Nenhuma novidade encontrada nesta varredura.");
+      console.log("Nenhuma novidade encontrada.");
     }
 
   } catch (e) {
-    console.error("Erro no processo do bot:", e);
+    console.error("Erro fatal no bot:", e);
   }
 }
 
@@ -107,7 +110,7 @@ async function sendPushNotification(game, store) {
     const result = await response.json();
     if (!result.id) console.error("Erro OneSignal:", result);
   } catch (err) {
-    console.error("Erro de conexão OneSignal");
+    console.error("Erro de rede OneSignal");
   }
 }
 
