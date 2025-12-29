@@ -1,21 +1,31 @@
 /**
- * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.4.1
- * Lógica Multi-Release: Verifica todos os jogos lançados na janela de tempo.
+ * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.5.0
+ * Lógica Baseada em Histórico: Garante que nenhum jogo seja perdido, independente do delay da API.
  */
+
+const fs = require('fs');
+const path = require('path');
 
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
-
-// Intervalo que o bot considera "novo". 
-// Como o GitHub Actions roda a cada 60 min, usamos 65 min para cobrir pequenos atrasos de inicialização.
-const TIME_WINDOW_MINUTES = 65;
+const HISTORY_FILE = path.join(__dirname, 'notified-ids.json');
 
 async function checkGamesAndNotify() {
-  console.log("--- [" + new Date().toISOString() + "] INICIANDO MONITORAMENTO ---");
+  console.log("--- [" + new Date().toISOString() + "] INICIANDO MONITORAMENTO PERSISTENTE ---");
   
   if (!ONESIGNAL_REST_API_KEY) {
     console.error("ERRO: ONESIGNAL_REST_API_KEY não configurada!");
-    return;
+    process.exit(1);
+  }
+
+  // 1. Carregar histórico de IDs já notificados
+  let notifiedIds = [];
+  if (fs.existsSync(HISTORY_FILE)) {
+    try {
+      notifiedIds = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+    } catch (e) {
+      notifiedIds = [];
+    }
   }
 
   try {
@@ -23,48 +33,54 @@ async function checkGamesAndNotify() {
     const games = await response.json();
     
     if (!Array.isArray(games)) {
-      console.error("Erro: Resposta da API inválida ou offline.");
+      console.error("Erro: Resposta da API inválida.");
       return;
     }
 
-    // 1. Filtrar apenas Steam e Epic que estão ativos
+    // 2. Filtrar Steam e Epic Ativos
     const targetGames = games.filter(game => {
       const p = game.platforms.toLowerCase();
       return (p.includes('steam') || p.includes('epic')) && game.status === "Active";
     });
 
-    console.log(`Total de jogos ativos em Steam/Epic: ${targetGames.length}`);
+    // 3. Identificar jogos que NUNCA foram notificados (independente da data de publicação)
+    // Limitamos a jogos publicados nas últimas 48h para evitar disparar lixo antigo se a API resetar
+    const now = Date.now();
+    const fortyEightHours = 48 * 60 * 60 * 1000;
 
-    // 2. Encontrar TODOS os jogos que entraram na loja na última hora
-    const newGamesFound = targetGames.filter(game => {
+    const newGamesToNotify = targetGames.filter(game => {
+      const isNewId = !notifiedIds.includes(game.id);
       const publishedTime = new Date(game.published_date).getTime();
-      const now = Date.now();
-      const diffInMinutes = (now - publishedTime) / (1000 * 60);
+      const isRecentEnough = (now - publishedTime) < fortyEightHours;
       
-      const isNew = diffInMinutes >= 0 && diffInMinutes <= TIME_WINDOW_MINUTES;
-      if (isNew) {
-        console.log(`[MATCH] Jogo detectado: "${game.title}" postado há ${Math.round(diffInMinutes)} min.`);
-      }
-      return isNew;
+      return isNewId && isRecentEnough;
     });
 
-    if (newGamesFound.length > 0) {
-      console.log(`🚀 Iniciando disparos para ${newGamesFound.length} novos jogos...`);
+    if (newGamesToNotify.length > 0) {
+      console.log(`🎁 ${newGamesToNotify.length} novos jogos detectados para notificação!`);
       
-      // 3. Notificar cada um deles
-      for (const game of newGamesFound) {
+      for (const game of newGamesToNotify) {
         const store = game.platforms.toLowerCase().includes('steam') ? 'Steam' : 'Epic Games';
+        console.log(`Disparando: ${game.title}`);
         await sendPushNotification(game, store);
         
-        // Pausa entre envios para evitar rate limit do OneSignal
+        // Adicionar ao histórico para não repetir nunca mais
+        notifiedIds.push(game.id);
+        
+        // Delay anti-spam
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
+
+      // 4. Salvar histórico atualizado (manter apenas os últimos 500 IDs para o arquivo não crescer infinito)
+      const updatedHistory = notifiedIds.slice(-500);
+      fs.writeFileSync(HISTORY_FILE, JSON.stringify(updatedHistory, null, 2));
+      console.log("✅ Histórico atualizado localmente.");
     } else {
-      console.log("Dormindo... nenhum lançamento novo detectado na última hora.");
+      console.log("Nenhuma novidade encontrada nesta varredura.");
     }
 
   } catch (e) {
-    console.error("Erro fatal no bot:", e);
+    console.error("Erro no processo do bot:", e);
   }
 }
 
@@ -88,15 +104,10 @@ async function sendPushNotification(game, store) {
       },
       body: JSON.stringify(message)
     });
-
     const result = await response.json();
-    if (result.id) {
-      console.log(`✅ SUCESSO: Notificação enviada para "${game.title}"`);
-    } else {
-      console.error(`❌ FALHA: OneSignal retornou erro para "${game.title}":`, result);
-    }
+    if (!result.id) console.error("Erro OneSignal:", result);
   } catch (err) {
-    console.error(`Erro de rede ao conectar com OneSignal:`, err);
+    console.error("Erro de conexão OneSignal");
   }
 }
 
