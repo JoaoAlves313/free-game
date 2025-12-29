@@ -1,5 +1,5 @@
 /**
- * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.4.0
+ * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.4.1
  * Lógica Multi-Release: Verifica todos os jogos lançados na janela de tempo.
  */
 
@@ -11,7 +11,7 @@ const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
 const TIME_WINDOW_MINUTES = 65;
 
 async function checkGamesAndNotify() {
-  console.log("--- INICIANDO MONITORAMENTO MULTI-JOGOS ---");
+  console.log("--- [" + new Date().toISOString() + "] INICIANDO MONITORAMENTO ---");
   
   if (!ONESIGNAL_REST_API_KEY) {
     console.error("ERRO: ONESIGNAL_REST_API_KEY não configurada!");
@@ -23,7 +23,7 @@ async function checkGamesAndNotify() {
     const games = await response.json();
     
     if (!Array.isArray(games)) {
-      console.error("Erro: Resposta da API inválida.");
+      console.error("Erro: Resposta da API inválida ou offline.");
       return;
     }
 
@@ -33,30 +33,34 @@ async function checkGamesAndNotify() {
       return (p.includes('steam') || p.includes('epic')) && game.status === "Active";
     });
 
+    console.log(`Total de jogos ativos em Steam/Epic: ${targetGames.length}`);
+
     // 2. Encontrar TODOS os jogos que entraram na loja na última hora
     const newGamesFound = targetGames.filter(game => {
       const publishedTime = new Date(game.published_date).getTime();
       const now = Date.now();
       const diffInMinutes = (now - publishedTime) / (1000 * 60);
       
-      // Se o jogo foi postado entre 0 e 65 minutos atrás, ele é "Novo" para esta rodada
-      return diffInMinutes >= 0 && diffInMinutes <= TIME_WINDOW_MINUTES;
+      const isNew = diffInMinutes >= 0 && diffInMinutes <= TIME_WINDOW_MINUTES;
+      if (isNew) {
+        console.log(`[MATCH] Jogo detectado: "${game.title}" postado há ${Math.round(diffInMinutes)} min.`);
+      }
+      return isNew;
     });
 
     if (newGamesFound.length > 0) {
-      console.log(`🚀 Foram encontrados ${newGamesFound.length} novos jogos na janela de tempo!`);
+      console.log(`🚀 Iniciando disparos para ${newGamesFound.length} novos jogos...`);
       
       // 3. Notificar cada um deles
       for (const game of newGamesFound) {
         const store = game.platforms.toLowerCase().includes('steam') ? 'Steam' : 'Epic Games';
-        console.log(`Enviando alerta para: ${game.title} (${store})`);
         await sendPushNotification(game, store);
         
-        // Pequena pausa entre envios para não sobrecarregar a API
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Pausa entre envios para evitar rate limit do OneSignal
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     } else {
-      console.log("Nenhum lançamento novo de Steam/Epic detectado nesta hora.");
+      console.log("Dormindo... nenhum lançamento novo detectado na última hora.");
     }
 
   } catch (e) {
@@ -87,12 +91,12 @@ async function sendPushNotification(game, store) {
 
     const result = await response.json();
     if (result.id) {
-      console.log(`✅ Notificação enviada: ${game.title}`);
+      console.log(`✅ SUCESSO: Notificação enviada para "${game.title}"`);
     } else {
-      console.error(`❌ Falha no OneSignal para ${game.title}:`, result);
+      console.error(`❌ FALHA: OneSignal retornou erro para "${game.title}":`, result);
     }
   } catch (err) {
-    console.error(`Erro ao conectar com OneSignal:`, err);
+    console.error(`Erro de rede ao conectar com OneSignal:`, err);
   }
 }
 

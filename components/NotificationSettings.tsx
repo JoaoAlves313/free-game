@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, X, ShieldCheck, BellOff, Info, CloudCheck, CloudOff, Zap, Server, Settings } from 'lucide-react';
+import { Bell, X, ShieldCheck, BellOff, Info, CloudCheck, CloudOff, Zap, Server, Settings, Send } from 'lucide-react';
 
 interface NotificationSettingsProps {
   isOpen: boolean;
@@ -8,6 +8,7 @@ interface NotificationSettingsProps {
   isCloudSynced: boolean;
   onToggleEnabled: () => void;
   onRequestPermission: () => void;
+  onSendTest: () => void;
   permissionStatus: string;
 }
 
@@ -18,6 +19,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
   isCloudSynced,
   onToggleEnabled,
   onRequestPermission,
+  onSendTest,
   permissionStatus
 }) => {
   if (!isOpen) return null;
@@ -59,7 +61,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                   <Server className="w-6 h-6" />
                   <div>
                     <span className="text-xs font-black uppercase tracking-widest block">Bot de Nuvem</span>
-                    <span className="text-[10px] opacity-60">Ativo 24h/dia (V1.4.0)</span>
+                    <span className="text-[10px] opacity-60">Ativo 24h/dia (V1.4.1)</span>
                   </div>
                 </div>
                 <button 
@@ -79,17 +81,25 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                   {isCloudSynced && enabled ? <CloudCheck className="w-5 h-5" /> : <CloudOff className="w-5 h-5" />}
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-widest block">Status do Bot</span>
-                    <span className="text-[9px] opacity-60">{isCloudSynced && enabled ? 'Sincronizado com Multi-Release' : 'Aguardando Setup'}</span>
+                    <span className="text-[9px] opacity-60">{isCloudSynced && enabled ? 'Sincronizado e Pronto' : 'Aguardando Sincronia'}</span>
                   </div>
                 </div>
               </div>
 
+              <button 
+                onClick={onSendTest}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gaming-700 hover:bg-gaming-600 text-white rounded-2xl border border-gaming-600 transition-all font-bold text-xs uppercase tracking-widest"
+              >
+                <Send className="w-4 h-4" />
+                Testar Notificação Agora
+              </button>
+
               <div className="bg-gaming-900/80 p-4 rounded-2xl border border-gaming-700 space-y-3">
                 <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  <Settings className="w-3 h-3" /> Monitor Inteligente
+                  <Settings className="w-3 h-3" /> Info do Robô
                 </div>
                 <p className="text-[10px] text-gray-500 leading-tight">
-                  Se 2 ou mais jogos saírem ao mesmo tempo, o robô enviará uma notificação para cada um, garantindo que você não perca nada.
+                  O robô verifica a API oficial a cada hora. Se houver novos jogos, você receberá um alerta mesmo com o site fechado.
                 </p>
               </div>
             </div>
@@ -98,7 +108,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
 
         <div className="p-4 bg-gaming-900 border-t border-gaming-700 text-center">
           <p className="text-[9px] text-gray-600 uppercase tracking-[0.3em] font-bold">
-            Cloud Monitor v1.4.0 Active
+            Cloud Monitor v1.4.1 Active
           </p>
         </div>
       </div>

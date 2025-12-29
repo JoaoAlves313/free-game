@@ -80,6 +80,28 @@ const App: React.FC = () => {
     });
   }, [notifEnabled, isSubscribed]);
 
+  const handleSendTest = useCallback(() => {
+    if (!("Notification" in window)) {
+      alert("Este navegador não suporta notificações.");
+      return;
+    }
+
+    const showTest = () => {
+      new Notification("🤖 TESTE DO ROBÔ", {
+        body: "Isso é apenas um teste! O robô enviará alertas reais assim que novos jogos aparecerem.",
+        icon: "https://www.gamerpower.com/favicon.ico"
+      });
+    };
+
+    if (Notification.permission === "granted") {
+      showTest();
+    } else {
+      Notification.requestPermission().then(permission => {
+        if (permission === "granted") showTest();
+      });
+    }
+  }, []);
+
   const checkAndNotifyLocal = useCallback((newGames: Game[]) => {
     if (!notifEnabled || Notification.permission !== 'granted') return;
 
@@ -196,6 +218,7 @@ const App: React.FC = () => {
           enabled={notifEnabled}
           isCloudSynced={isCloudSynced}
           onToggleEnabled={() => setNotifEnabled(!notifEnabled)}
+          onSendTest={handleSendTest}
           onRequestPermission={() => {
             window.OneSignalDeferred.push((OS: any) => OS.Notifications.requestPermission());
           }}
