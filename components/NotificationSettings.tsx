@@ -1,5 +1,7 @@
+
+// Added React import to resolve namespace issue
 import React from 'react';
-import { Bell, X, ShieldCheck, BellOff, Info, CloudCheck, CloudOff, Zap, Server, Settings, Send } from 'lucide-react';
+import { Bell, X, ShieldCheck, BellOff, Info, CloudCheck, CloudOff, Zap, Server, Settings, Send, MousePointer2 } from 'lucide-react';
 
 interface NotificationSettingsProps {
   isOpen: boolean;
@@ -24,6 +26,8 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const isGranted = permissionStatus === 'granted';
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-fade-in">
       <div className="bg-gaming-800 border border-gaming-700 w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
@@ -46,12 +50,26 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
             </p>
           </div>
 
-          {permissionStatus !== 'granted' ? (
+          {!isGranted ? (
             <div className="space-y-6">
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6 flex flex-col items-center text-center gap-4">
                 <BellOff className="w-10 h-10 text-amber-500 animate-pulse" />
-                <p className="text-xs text-amber-200/80 leading-relaxed uppercase font-bold tracking-widest">Aguardando Autorização</p>
-                <div className='onesignal-customlink-container w-full'></div>
+                <div className="space-y-1">
+                  <p className="text-xs text-amber-200/80 leading-relaxed uppercase font-bold tracking-widest">Aguardando Autorização</p>
+                  <p className="text-[10px] text-amber-500/60 font-medium">Clique no botão abaixo para permitir as notificações no seu navegador.</p>
+                </div>
+                
+                {/* Botão de ação direta para garantir a autorização */}
+                <button 
+                  onClick={onRequestPermission}
+                  className="w-full flex items-center justify-center gap-3 bg-gaming-accent hover:bg-white text-white hover:text-gaming-900 py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-gaming-accent/20 group"
+                >
+                  <MousePointer2 className="w-5 h-5 group-hover:animate-bounce" />
+                  ATIVAR AGORA
+                </button>
+                
+                {/* Container alternativo do OneSignal (fallback) */}
+                <div className='onesignal-customlink-container w-full opacity-50 text-[10px]'></div>
               </div>
             </div>
           ) : (

@@ -19,8 +19,17 @@
             enable: false,
           },
           promptOptions: {
+            slidedown: {
+              enabled: true,
+              autoPrompt: true,
+              timeDelay: 5,
+              pageViews: 1,
+              actionMessage: "Deseja receber alertas de novos jogos grátis da Steam e Epic Games?",
+              acceptButtonText: "SIM, ATIVAR",
+              cancelButtonText: "AGORA NÃO",
+            },
             customlink: {
-              enabled: true, /* Força a ativação do Custom Link via código */
+              enabled: true,
               style: "button",
               size: "medium",
               color: {
@@ -102,7 +111,6 @@
         background: #64748b; 
       }
       
-      /* Estilização para garantir que o OneSignal injete o botão visível */
       .onesignal-customlink-container {
         width: 100% !important;
         min-height: 50px !important;
@@ -111,7 +119,6 @@
         align-items: center !important;
       }
 
-      /* Caso o OneSignal injete um link/botão, garantimos que ele preencha o espaço e seja visível */
       .onesignal-customlink-container button, 
       .onesignal-customlink-container .onesignal-customlink-button {
         background-color: #8b5cf6 !important;
