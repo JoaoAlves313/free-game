@@ -1,6 +1,7 @@
 /**
- * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.5.1
+ * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.5.2
  * Lógica Baseada em Histórico - Versão ES Module (ESM)
+ * Correção: Só marca como notificado se o envio via OneSignal for bem-sucedido.
  */
 
 import fs from 'fs';
@@ -11,15 +12,21 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
-const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+// .trim() remove espaços em branco acidentais que causam erro de "Access Denied"
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID?.trim();
+const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY?.trim();
 const HISTORY_FILE = path.join(__dirname, 'notified-ids.json');
 
 async function checkGamesAndNotify() {
   console.log("--- [" + new Date().toISOString() + "] INICIANDO MONITORAMENTO PERSISTENTE (ESM) ---");
   
   if (!ONESIGNAL_REST_API_KEY) {
-    console.error("ERRO: ONESIGNAL_REST_API_KEY não configurada!");
+    console.error("ERRO CRÍTICO: ONESIGNAL_REST_API_KEY não encontrada no ambiente do GitHub!");
+    process.exit(1);
+  }
+
+  if (!ONESIGNAL_APP_ID) {
+    console.error("ERRO CRÍTICO: ONESIGNAL_APP_ID não encontrada!");
     process.exit(1);
   }
 
@@ -40,7 +47,7 @@ async function checkGamesAndNotify() {
     const games = await response.json();
     
     if (!Array.isArray(games)) {
-      console.error("Erro: Resposta da API inválida.");
+      console.error("Erro: Resposta da API GamerPower inválida.");
       return;
     }
 
@@ -63,27 +70,39 @@ async function checkGamesAndNotify() {
     });
 
     if (newGamesToNotify.length > 0) {
-      console.log(`🎁 ${newGamesToNotify.length} novos jogos detectados!`);
+      console.log(`🎁 Encontrados ${newGamesToNotify.length} possíveis novos jogos.`);
+      let successCount = 0;
       
       for (const game of newGamesToNotify) {
         const store = game.platforms.toLowerCase().includes('steam') ? 'Steam' : 'Epic Games';
-        console.log(`Disparando Push: ${game.title}`);
-        await sendPushNotification(game, store);
+        console.log(`Tentando enviar: ${game.title} (${store})`);
         
-        notifiedIds.push(game.id);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        const success = await sendPushNotification(game, store);
+        
+        if (success) {
+          notifiedIds.push(game.id);
+          successCount++;
+          // Delay anti-spam
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        } else {
+          console.warn(`Aviso: O jogo "${game.title}" não foi enviado e será tentado novamente na próxima rodada.`);
+        }
       }
 
-      // 4. Salvar histórico (limitado a 500 itens)
-      const updatedHistory = notifiedIds.slice(-500);
-      fs.writeFileSync(HISTORY_FILE, JSON.stringify(updatedHistory, null, 2));
-      console.log("✅ Histórico atualizado.");
+      // 4. Salvar histórico apenas dos IDs que realmente foram enviados
+      if (successCount > 0) {
+        const updatedHistory = notifiedIds.slice(-500);
+        fs.writeFileSync(HISTORY_FILE, JSON.stringify(updatedHistory, null, 2));
+        console.log(`✅ Histórico atualizado com ${successCount} novos jogos.`);
+      } else {
+        console.log("Nenhuma notificação foi enviada com sucesso. Histórico não alterado.");
+      }
     } else {
-      console.log("Nenhuma novidade encontrada.");
+      console.log("Nenhum jogo novo detectado.");
     }
 
   } catch (e) {
-    console.error("Erro fatal no bot:", e);
+    console.error("Erro fatal no processo do bot:", e);
   }
 }
 
@@ -107,10 +126,22 @@ async function sendPushNotification(game, store) {
       },
       body: JSON.stringify(message)
     });
+    
     const result = await response.json();
-    if (!result.id) console.error("Erro OneSignal:", result);
+    
+    if (result && result.id) {
+      console.log(`Sucesso: Notificação enviada! ID: ${result.id}`);
+      return true;
+    } else {
+      console.error("Falha no OneSignal:", JSON.stringify(result));
+      if (JSON.stringify(result).includes("Access denied")) {
+        console.error("DICA: Sua 'ONESIGNAL_REST_API_KEY' parece inválida para este App ID. Verifique os Segredos do GitHub.");
+      }
+      return false;
+    }
   } catch (err) {
-    console.error("Erro de rede OneSignal");
+    console.error("Erro de conexão com OneSignal:", err.message);
+    return false;
   }
 }
 
