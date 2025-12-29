@@ -1,6 +1,6 @@
 /**
- * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.6.1
- * Configuração: GitHub Secrets (Seguro)
+ * SCRIPT DE MONITORAMENTO EXTERNO (BOT) v1.7.0
+ * Proteção contra duplicatas pós-update (Cold Start Logic)
  */
 
 import fs from 'fs';
@@ -10,54 +10,64 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Definições de fallback caso o segredo falhe ou não exista
 const FALLBACK_APP_ID = "f2ba2a7e-9634-43af-8489-7dcfa2c27cb4";
-
-// Prioriza variáveis do ambiente (GitHub Secrets)
 const ONESIGNAL_APP_ID = (process.env.ONESIGNAL_APP_ID || FALLBACK_APP_ID).trim();
 const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY?.trim();
 const HISTORY_FILE = path.join(__dirname, 'notified-ids.json');
 
 async function checkGamesAndNotify() {
-  console.log("--- [" + new Date().toISOString() + "] INICIANDO MONITORAMENTO (GITHUB SECRETS) ---");
+  console.log("--- [" + new Date().toISOString() + "] MONITORAMENTO ATIVO ---");
   
   if (!ONESIGNAL_REST_API_KEY) {
-    console.error("❌ ERRO CRÍTICO: Variável ONESIGNAL_REST_API_KEY não detectada!");
-    console.error("Certifique-se de que o segredo foi criado em: Settings > Secrets and variables > Actions");
+    console.error("❌ Erro: ONESIGNAL_REST_API_KEY não configurada.");
     process.exit(1);
   }
 
-  console.log(`📡 Usando App ID: ${ONESIGNAL_APP_ID}`);
-
   let notifiedIds = [];
+  let isColdStart = false;
+
+  // 1. Tenta carregar o histórico
   if (fs.existsSync(HISTORY_FILE)) {
     try {
       const data = fs.readFileSync(HISTORY_FILE, 'utf8');
       notifiedIds = JSON.parse(data);
     } catch (e) {
-      console.warn("⚠️ Histórico corrompido, iniciando novo.");
       notifiedIds = [];
     }
+  }
+
+  // 2. Se o histórico estiver vazio, marcamos como Cold Start
+  // Isso acontece na primeira execução ou após você atualizar o código do site
+  if (notifiedIds.length === 0) {
+    console.log("❄️ [Cold Start] Histórico vazio detectado. Vou sincronizar os IDs atuais sem enviar notificações.");
+    isColdStart = true;
   }
 
   try {
     const response = await fetch("https://www.gamerpower.com/api/giveaways?type=game&sort-by=date");
     const games = await response.json();
     
-    if (!Array.isArray(games)) {
-      console.error("❌ Erro ao buscar dados da GamerPower.");
-      return;
-    }
+    if (!Array.isArray(games)) return;
 
-    const targetGames = games.filter(game => {
+    // Filtramos apenas Steam e Epic que estejam ativos
+    const activeGames = games.filter(game => {
       const p = game.platforms.toLowerCase();
       return (p.includes('steam') || p.includes('epic')) && game.status === "Active";
     });
 
+    if (isColdStart) {
+      // Apenas salvamos os IDs atuais para "limpar" o passado
+      const currentIds = activeGames.map(g => g.id);
+      fs.writeFileSync(HISTORY_FILE, JSON.stringify(currentIds, null, 2));
+      console.log(`✅ Sincronizado: ${currentIds.length} jogos salvos no histórico. Nenhuma notificação enviada.`);
+      return;
+    }
+
+    // Lógica normal para encontrar novidades (apenas jogos publicados nas últimas 48h)
     const now = Date.now();
     const fortyEightHours = 48 * 60 * 60 * 1000;
 
-    const newGamesToNotify = targetGames.filter(game => {
+    const newGamesToNotify = activeGames.filter(game => {
       const isNewId = !notifiedIds.includes(game.id);
       const publishedTime = new Date(game.published_date).getTime();
       return isNewId && (now - publishedTime < fortyEightHours);
@@ -69,25 +79,21 @@ async function checkGamesAndNotify() {
       
       for (const game of newGamesToNotify) {
         const store = game.platforms.toLowerCase().includes('steam') ? 'Steam' : 'Epic Games';
-        console.log(`🚀 Disparando Push: ${game.title} (${store})`);
-        
         const success = await sendPushNotification(game, store);
         
         if (success) {
           notifiedIds.push(game.id);
           successCount++;
-          // Delay entre notificações para evitar bloqueio
-          await new Promise(r => setTimeout(r, 3000));
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
 
       if (successCount > 0) {
-        // Salva apenas os últimos 500 IDs para manter o arquivo leve
         fs.writeFileSync(HISTORY_FILE, JSON.stringify(notifiedIds.slice(-500), null, 2));
-        console.log(`✅ Processo finalizado. ${successCount} notificações enviadas.`);
+        console.log(`✅ Sucesso: ${successCount} notificações enviadas.`);
       }
     } else {
-      console.log("😴 Nenhum jogo novo desde a última verificação.");
+      console.log("😴 Tudo atualizado. Sem novos jogos.");
     }
 
   } catch (e) {
@@ -105,14 +111,13 @@ async function sendPushNotification(game, store) {
       },
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
-        // OneSignal exige 'en' como fallback obrigatório
         headings: { 
           "en": `🎁 FREE GAME: ${game.title}`,
           "pt": `🎁 JOGO GRÁTIS: ${game.title}` 
         },
         contents: { 
-          "en": `New giveaway on ${store}! Click to claim now.`,
-          "pt": `Novo drop na ${store}! Clique para resgatar agora.` 
+          "en": `Available now on ${store}! Click to claim.`,
+          "pt": `Disponível na ${store}! Clique para resgatar.` 
         },
         included_segments: ["All"],
         chrome_web_icon: game.thumbnail,
@@ -122,16 +127,8 @@ async function sendPushNotification(game, store) {
     });
     
     const result = await response.json();
-    
-    if (result && result.id) {
-      console.log(`✨ Sucesso! ID da Notificação: ${result.id}`);
-      return true;
-    } else {
-      console.error("❌ Falha OneSignal:", JSON.stringify(result));
-      return false;
-    }
+    return !!(result && result.id);
   } catch (err) {
-    console.error("❌ Erro de conexão OneSignal:", err.message);
     return false;
   }
 }
