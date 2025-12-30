@@ -1,27 +1,19 @@
+
 import React from 'react';
 
 const Footer: React.FC = () => {
-  const APP_VERSION = "v1.4.0";
-
   return (
     <footer className="bg-gaming-900 border-t border-gaming-700 py-8 mt-12">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-center md:text-left">
-            <p className="text-gray-500 text-sm font-medium">
-              Monitoramento Inteligente Multi-Release.
-            </p>
-            <p className="text-gray-600 text-[10px] mt-1 uppercase tracking-tight">
-              Steam & Epic Games. Alertas 24h para todos os novos jogos.
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+          <div>
+            <p className="text-gray-500 text-sm">
+              Encontrando os melhores jogos gratuitos para você.
             </p>
           </div>
           
-          <div className="flex flex-col items-center md:items-end">
-            <div className="flex items-center gap-2 px-3 py-1 bg-gaming-800 rounded-full border border-gaming-700">
-              <span className="w-2 h-2 bg-gaming-accent rounded-full animate-pulse"></span>
-              <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Build: {APP_VERSION}</span>
-            </div>
-            <p className="text-[9px] text-gray-700 mt-2 uppercase tracking-tighter">© 2024 FreeGameHunter</p>
+          <div className="text-gray-600 text-xs">
+            © {new Date().getFullYear()} FreeGameHunter
           </div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import GameCard from './components/GameCard';
@@ -6,7 +7,7 @@ import NotificationSettings from './components/NotificationSettings';
 import Footer from './components/Footer';
 import { fetchFreeGames } from './services/gameService';
 import { Game } from './types';
-import { Loader2, AlertCircle, ShoppingBag, Gift, Bell, BellOff, MonitorSmartphone, Zap } from 'lucide-react';
+import { Loader2, ShoppingBag, MonitorSmartphone, Bell, BellOff } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -36,7 +37,6 @@ const App: React.FC = () => {
 
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
-  const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [notifEnabled, setNotifEnabled] = useState(() => {
     return localStorage.getItem('notif_enabled') !== 'false';
   });
@@ -66,39 +66,21 @@ const App: React.FC = () => {
       if (isSubscribed && OneSignal.User) {
         try {
           OneSignal.User.addTags({
-            notifications_enabled: notifEnabled ? "true" : "false",
-            target_steam: "true",
-            target_epic: "true",
-            user_tier: "auto_monitor"
-          }).then(() => {
-            setIsCloudSynced(true);
+            notifications_enabled: notifEnabled ? "true" : "false"
           });
-        } catch (e) {
-          console.error("Erro OneSignal Tags:", e);
-        }
+        } catch (e) {}
       }
     });
   }, [notifEnabled, isSubscribed]);
 
   const handleSendTest = useCallback(() => {
-    if (!("Notification" in window)) {
-      alert("Este navegador não suporta notificações.");
-      return;
-    }
-
-    const showTest = () => {
-      new Notification("🤖 TESTE DO ROBÔ", {
-        body: "Isso é apenas um teste! O robô enviará alertas reais assim que novos jogos aparecerem.",
+    if (Notification.permission === "granted") {
+      new Notification("FreeGameHunter", {
+        body: "Teste de notificação ativo!",
         icon: "https://www.gamerpower.com/favicon.ico"
       });
-    };
-
-    if (Notification.permission === "granted") {
-      showTest();
     } else {
-      Notification.requestPermission().then(permission => {
-        if (permission === "granted") showTest();
-      });
+      alert("Por favor, autorize as notificações primeiro.");
     }
   }, []);
 
@@ -118,14 +100,14 @@ const App: React.FC = () => {
     if (newMatches.length > 0) {
       newMatches.forEach(game => {
         new Notification(`Novo Jogo: ${game.title}`, {
-          body: `Disponível agora na ${identifyStore(game)}!`,
+          body: `Disponível na ${identifyStore(game)}!`,
           icon: game.thumbnail
         });
       });
     }
 
     const allIds = Array.from(new Set([...lastSeenIds, ...newGames.map(g => g.id)]));
-    localStorage.setItem('last_seen_ids', JSON.stringify(allIds.slice(-200)));
+    localStorage.setItem('last_seen_ids', JSON.stringify(allIds.slice(-100)));
   }, [notifEnabled]);
 
   useEffect(() => {
@@ -144,7 +126,7 @@ const App: React.FC = () => {
           checkAndNotifyLocal(filteredData);
         }
       } catch (err) {
-        setError("Erro na conexão.");
+        setError("Falha ao carregar.");
       } finally {
         setLoading(false);
       }
@@ -164,7 +146,7 @@ const App: React.FC = () => {
         if (currentMonth > 11) return false;
         return item.day >= currentDay;
       })
-      .map(item => ({ title: "Presente Epic Games", day: item.day }));
+      .map(item => ({ title: "Presente Misterioso", day: item.day }));
   }, []);
 
   const toggleStore = (store: string) => {
@@ -216,7 +198,7 @@ const App: React.FC = () => {
           isOpen={isNotifModalOpen}
           onClose={() => setIsNotifModalOpen(false)}
           enabled={notifEnabled}
-          isCloudSynced={isCloudSynced}
+          isCloudSynced={false}
           onToggleEnabled={() => setNotifEnabled(!notifEnabled)}
           onSendTest={handleSendTest}
           onRequestPermission={() => {
@@ -229,37 +211,34 @@ const App: React.FC = () => {
           <>
             {loading && (
               <div className="flex flex-col items-center justify-center py-20">
-                <Loader2 className="w-12 h-12 text-gaming-accent animate-spin mb-4" />
-                <p className="text-gray-400">Escaneando lojas...</p>
+                <Loader2 className="w-10 h-10 text-gaming-accent animate-spin mb-4" />
+                <p className="text-gray-500 text-sm">Buscando ofertas...</p>
               </div>
             )}
             
             {!loading && !error && (
-              <div className="space-y-8 animate-fade-in">
-                <div className="bg-gaming-800/50 border border-gaming-700 rounded-2xl p-4 md:p-6 backdrop-blur-md flex flex-col lg:flex-row items-center justify-between gap-6">
-                  <div className="flex flex-col sm:flex-row gap-6 w-full lg:w-auto">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-[0.2em]">
-                        <ShoppingBag className="w-3 h-3 text-gaming-highlight" /> Filtrar Loja
-                      </div>
+              <div className="space-y-10 animate-fade-in">
+                {/* Simplified Filter Bar */}
+                <div className="bg-gaming-800/40 border border-gaming-700 rounded-3xl p-6 backdrop-blur-sm flex flex-col lg:flex-row items-center justify-between gap-8">
+                  <div className="flex flex-col sm:flex-row gap-8 w-full lg:w-auto">
+                    <div className="space-y-3">
+                      <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">Lojas</span>
                       <div className="flex gap-2">
                         {stores.map(s => (
                           <button key={s} onClick={() => toggleStore(s)}
-                            className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition-all ${selectedStores.includes(s) ? 'bg-gaming-accent text-white border-gaming-accent shadow-md shadow-gaming-accent/10' : 'bg-gaming-900/50 text-gray-500 border-gaming-700 hover:border-gray-500'}`}>
+                            className={`px-4 py-1.5 rounded-xl text-xs font-semibold border transition-all ${selectedStores.includes(s) ? 'bg-gaming-accent text-white border-gaming-accent' : 'bg-gaming-900/50 text-gray-400 border-gaming-700 hover:border-gray-500'}`}>
                             {s}
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-[0.2em]">
-                        <MonitorSmartphone className="w-3 h-3 text-emerald-400" /> Plataforma
-                      </div>
+                    <div className="space-y-3">
+                      <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest block">Plataforma</span>
                       <div className="flex gap-2">
                         {platformOptions.map(p => (
                           <button key={p} onClick={() => togglePlatform(p)}
-                            className={`px-4 py-1.5 rounded-xl text-xs font-bold border transition-all ${selectedPlatforms.includes(p) ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-900/10' : 'bg-gaming-900/50 text-gray-500 border-gaming-700 hover:border-gray-500'}`}>
+                            className={`px-4 py-1.5 rounded-xl text-xs font-semibold border transition-all ${selectedPlatforms.includes(p) ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-gaming-900/50 text-gray-400 border-gaming-700 hover:border-gray-500'}`}>
                             {p}
                           </button>
                         ))}
@@ -267,30 +246,24 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="w-full lg:w-auto">
-                    <button 
-                      onClick={() => setIsNotifModalOpen(true)}
-                      className={`flex items-center justify-center gap-3 px-8 py-3 rounded-xl border font-black text-xs transition-all w-full md:w-64 group ${
-                        isSubscribed && notifEnabled
-                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-xl shadow-indigo-900/20'
-                          : 'bg-gaming-900 border-gaming-700 text-gray-400 hover:text-white hover:border-gaming-accent'
-                      }`}
-                    >
-                      {isSubscribed && notifEnabled ? <Zap className="w-4 h-4 animate-pulse text-yellow-300" /> : <BellOff className="w-4 h-4" />}
-                      <span className="uppercase tracking-widest">{isSubscribed && notifEnabled ? 'Monitoramento Ativo' : 'Ativar Alertas'}</span>
-                    </button>
-                  </div>
+                  <button 
+                    onClick={() => setIsNotifModalOpen(true)}
+                    className={`flex items-center justify-center gap-3 px-8 py-3 rounded-2xl border font-bold text-sm transition-all w-full md:w-auto ${
+                      isSubscribed && notifEnabled
+                        ? 'bg-gaming-accent/10 border-gaming-accent/50 text-gaming-accent'
+                        : 'bg-gaming-900 border-gaming-700 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {isSubscribed && notifEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                    <span>Notificações</span>
+                  </button>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-2xl font-black text-white flex items-center gap-3">
-                      <span className="w-1.5 h-8 bg-gaming-accent rounded-full"></span> 
-                      Steam & Epic Games
-                    </h2>
-                    <span className="text-[10px] font-mono text-gray-500 bg-gaming-800 px-4 py-1.5 rounded-full border border-gaming-700 uppercase tracking-widest">
-                      {filteredGames.length} ofertas agora
-                    </span>
+                  <div className="flex items-center gap-4 mb-8">
+                    <h2 className="text-xl font-bold text-white">Jogos Gratuitos</h2>
+                    <div className="h-px bg-gaming-700 flex-grow"></div>
+                    <span className="text-xs text-gray-500 font-medium">{filteredGames.length} encontrados</span>
                   </div>
                   
                   {filteredGames.length > 0 ? (
@@ -299,7 +272,7 @@ const App: React.FC = () => {
                     </div>
                   ) : (
                     <div className="text-center py-20 bg-gaming-800/20 rounded-3xl border border-dashed border-gaming-700">
-                      <p className="text-gray-500">Nenhuma oferta encontrada.</p>
+                      <p className="text-gray-500">Nenhum jogo disponível nestes filtros.</p>
                     </div>
                   )}
                 </div>
@@ -309,11 +282,10 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'leaks' && (
-          <div className="space-y-8 animate-fade-in">
-            <div className="text-center py-8">
-              <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-green-500 inline-flex items-center gap-3">
-                <Gift className="w-8 h-8 text-red-500" /> Calendário de Natal <Gift className="w-8 h-8 text-green-500" />
-              </h2>
+          <div className="space-y-12 animate-fade-in">
+            <div className="text-center max-w-2xl mx-auto">
+              <h2 className="text-3xl font-bold text-white mb-4">Calendário de Dezembro</h2>
+              <p className="text-gray-400 text-sm">Acompanhe as datas dos drops misteriosos da Epic Games durante o período de festas.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {christmasPresents.map((leak, index) => <HypothesisCard key={index} title={leak.title} day={leak.day} />)}

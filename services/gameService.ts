@@ -1,9 +1,10 @@
-
 import { Game, GameDataResponse } from "../types";
 
 const API_URL = "https://www.gamerpower.com/api/giveaways?type=game&sort-by=popularity";
-const CACHE_KEY = "fgh_api_cache";
-const CACHE_TIME = 10 * 60 * 1000; // 10 minutos em milissegundos
+const CACHE_KEY = "fgh_api_cache_v2";
+
+// Configuração solicitada: 5 minutos para imutabilidade e 5 minutos para atualização.
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos em milissegundos
 
 interface CacheData {
   timestamp: number;
@@ -20,7 +21,7 @@ const fetchWithProxy = async (targetUrl: string): Promise<any> => {
   for (const createProxyUrl of proxies) {
     try {
       const proxyUrl = createProxyUrl(targetUrl);
-      const response = await fetch(proxyUrl);
+      const response = await fetch(proxyUrl, { cache: 'no-store' }); 
       
       if (response.ok) {
         const text = await response.text();
@@ -35,59 +36,63 @@ const fetchWithProxy = async (targetUrl: string): Promise<any> => {
         }
       }
     } catch (e) {
-      console.warn(`Proxy attempt failed for ${targetUrl}`);
+      console.warn(`[Proxy] Falha ao tentar: ${createProxyUrl(targetUrl)}`);
       continue;
     }
   }
-  throw new Error("Conexão falhou em todos os proxies.");
+  throw new Error("Conexão impossível com a API GamerPower através dos proxies.");
 };
 
 export const fetchFreeGames = async (): Promise<GameDataResponse> => {
   const now = Date.now();
   
-  // 1. Tentar ler do Cache primeiro
+  // 1. Tentar ler do Cache
   const cached = localStorage.getItem(CACHE_KEY);
+  
   if (cached) {
     try {
       const cacheParsed: CacheData = JSON.parse(cached);
-      const isExpired = now - cacheParsed.timestamp > CACHE_TIME;
+      const elapsed = now - cacheParsed.timestamp;
 
-      if (!isExpired) {
-        console.log(`[Cache] Usando dados locais. Próxima atualização em ${Math.round((CACHE_TIME - (now - cacheParsed.timestamp)) / 1000 / 60)} min.`);
+      // REGRA: Se passou menos de 5 minutos, mantém os dados (Imutabilidade)
+      if (elapsed < CACHE_DURATION) {
+        const remaining = Math.round((CACHE_DURATION - elapsed) / 1000);
+        console.log(`[Cache Lock] Dados imutáveis por mais ${remaining}s. Usando cache local.`);
         return cacheParsed.data;
       }
-      console.log("[Cache] Expirado. Buscando novos dados na API...");
+
+      console.log(`[Cache Expired] Janela de 5 min atingida. Atualizando base de dados...`);
     } catch (e) {
-      console.error("[Cache] Erro ao ler cache corrompido.");
+      console.error("[Cache Corrupt] Resetando cache.");
+      localStorage.removeItem(CACHE_KEY);
     }
   }
 
-  // 2. Se não houver cache ou estiver expirado, buscar na API
+  // 2. Buscar na API (se não houver cache ou se ele tiver mais de 5 min)
   try {
     const data = await fetchWithProxy(API_URL);
     if (Array.isArray(data)) {
       const result: GameDataResponse = {
         games: data.filter((g: Game) => g.status === "Active").slice(0, 60),
         summary: "",
-        source: "GamerPower API"
+        source: "GamerPower Live API"
       };
 
-      // 3. Salvar no Cache
+      // 3. Salvar no Cache com timestamp atual
       const cacheToSave: CacheData = {
-        timestamp: now,
+        timestamp: Date.now(),
         data: result
       };
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheToSave));
       
+      console.log("[API] Sucesso! Novos dados travados pelos próximos 5 minutos.");
       return result;
     }
   } catch (error) {
-    console.error("Fetch error in fetchFreeGames:", error);
+    console.error("[Fetch Error] Erro ao buscar API. Tentando fallback para cache antigo.");
     
-    // 4. Fallback: Se a API falhar mas tivermos cache (mesmo que expirado), usamos ele
     if (cached) {
       const cacheParsed: CacheData = JSON.parse(cached);
-      console.warn("[Cache] API falhou, usando cache expirado como fallback.");
       return cacheParsed.data;
     }
   }
